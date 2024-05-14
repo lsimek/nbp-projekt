@@ -1,0 +1,86 @@
+\documentclass{beamer}
+\hypersetup{unicode}
+\usepackage[utf8]{inputenc}
+\usepackage[croatian]{babel}
+\usepackage{csquotes}
+\MakeOuterQuote{"}
+\usepackage{thmtools}
+
+\declaretheorem{teorem}
+\declaretheorem[style=remark, sibling=teorem]{primjer}
+\declaretheorem[style=remark, sibling=teorem]{napomena}
+\declaretheorem[style=definition, sibling=teorem]{definicija}
+
+\usepackage[style=authoryear]{biblatex}
+\addbibresource{literatura.bib}
+\usepackage{tikz}
+
+% manage colors: https://www.r-bloggers.com/2011/11/create-your-own-beamer-template/
+% and https://ramblingacademic.com/2015/12/08/how-to-quickly-overhaul-beamer-colors/
+
+\usetikzlibrary{arrows}
+\newcommand{\midarrow}{\tikz \draw[-triangle 90] (0,0) -- +(.1,0);}
+
+\definecolor{seagreen}{HTML}{21b2aa}
+\definecolor{magenta}{HTML}{b2217f}
+\definecolor{gold}{HTML}{ca9520}
+\definecolor{red}{HTML}{da272f}
+\definecolor{blue}{HTML}{4682b4}
+\definecolor{purple}{HTML}{a65cef}
+
+\definecolor{white}{HTML}{ffffff}
+\definecolor{dwhite}{HTML}{eeeeee}
+\definecolor{black}{HTML}{000000}
+\definecolor{lblack}{HTML}{222222}
+
+\colorlet{bgmain}{seagreen}
+\colorlet{bgsec}{magenta}
+\colorlet{bgter}{gold}
+\colorlet{fgmain}{black}
+\colorlet{fgsec}{lblack}
+
+\usetheme{Madrid}
+\usecolortheme{orchid}
+% \useinnertheme{rounded}
+
+\setbeamercolor{titlelike}{parent=structure, bg=seagreen, fg=white}
+\setbeamercolor{palette primary}{bg=magenta, fg=white}
+\setbeamercolor{palette secondary}{bg=magenta, fg=white}
+\setbeamercolor{palette tertiary}{bg=magenta, fg=white}
+\setbeamercolor{palette quaternary}{bg=magenta, fg=white}
+\setbeamercolor{structure}{bg=white, fg=magenta} % itemize, enumerate, etc
+\setbeamercolor{section in toc}{fg=black, bg=lblack} % TOC sections
+\setbeamercolor{frametitle}{fg=white, bg=seagreen}
+
+\setbeamercolor{block title}{fg=white, bg=seagreen}
+% \setbeamercolor{block body}{bg=white, fg=white}
+
+% Override palette coloring with secondary
+\setbeamercolor{subsection in head/foot}{bg=seagreen,fg=white}
+
+
+
+\title[PyGDB]{PyGDB --- analiza strukture izvornog koda}
+\subtitle{Projekt iz kolegija Napredne baze podataka}
+\author{Luka Šimek}
+\institute[PMF--MO]{Prirodoslovno-matematički fakultet --- Matematički odsjek\\Sveučilište u Zagrebu}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}[plain]
+\titlepage
+\end{frame}
+
+\begin{frame}{Sadržaj}
+\tableofcontents
+\end{frame}
+
+% ...
+
+\begin{frame}[t]{Literatura}
+\printbibliography
+\end{frame}
+\end{document}
+
+

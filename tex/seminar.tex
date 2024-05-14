@@ -1,0 +1,109 @@
+\documentclass[11pt]{scrartcl}
+\usepackage[utf8]{inputenc}
+\usepackage[croatian]{babel}
+\usepackage{datetime}
+\newdate{date}{14}{05}{2024}
+\date{\displaydate{date}}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{csquotes}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usepackage{arydshln}
+\pagenumbering{gobble}
+\usepackage{float}
+\usepackage{xcolor}
+%\usepackage[dvipsnames]{xcolor}
+%\usepackage{mathptmx} %times new roman?
+\usepackage{breqn}
+\usepackage[T1]{fontenc}
+\usepackage{thmtools}
+\usepackage{multirow}
+\usepackage[unicode]{hyperref}
+
+\usepackage{booktabs}
+\usepackage{listings}
+
+\definecolor{seagreen}{HTML}{21b2aa}
+\definecolor{magenta}{HTML}{b2217f}
+\definecolor{gold}{HTML}{ca9520}
+\definecolor{red}{HTML}{da272f}
+\definecolor{blue}{HTML}{4682b4}
+\definecolor{navy}{HTML}{06038d}
+\definecolor{nred}{HTML}{5c1200}
+
+\definecolor{codebg}{HTML}{f0f0fa}
+\definecolor{commentfg}{HTML}{333333}
+
+\lstdefinestyle{mystyle}{
+	backgroundcolor=\color{codebg},
+	commentstyle=\color{commentfg},
+	keywordstyle=\color{navy},
+	stringstyle=\color{commentfg},
+	basicstyle=\ttfamily\footnotesize,
+	breakatwhitespace=false,
+	breaklines=true,
+	captionpos=b,
+	keepspaces=true,
+	numbers=none,
+	showspaces=false,
+	showstringspaces=false,
+	showtabs=false,
+	tabsize=2
+}
+\lstset{style=mystyle}
+
+\hypersetup{
+    colorlinks,
+    linkcolor=navy,
+    citecolor=navy,
+    urlcolor=navy
+}
+
+\usepackage{enumitem}
+\usepackage[style=numeric]{biblatex}
+\addbibresource{literatura.bib}
+
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.15}
+\usepackage{mathrsfs}
+\usetikzlibrary{arrows}
+	
+\usepackage[section]{placeins}
+\declaretheorem{teorem}
+\declaretheorem[sibling=teorem, style=plain]{lema}
+\declaretheorem[style=remark, sibling=teorem]{napomena}
+\declaretheorem[style=remark, sibling=teorem]{komentar}
+\declaretheorem[style=definition, sibling=teorem]{definicija}
+\declaretheorem[style=remark, sibling=teorem]{korolar}
+\declaretheorem[style=remark, sibling=teorem]{zadatak}
+\declaretheorem[style=plain, sibling=teorem]{propozicija}
+
+\begin{document}
+
+\title{PyGDB --- analiza strukture izvornog koda} \thispagestyle{empty}
+\subtitle{Projekt iz kolegija Napredne baze podataka}
+\author{Luka Šimek}
+% \institute{Prirodoslovno-matematički fakultet --- Matematički odsjek\\Sveučilište u Zagrebu}
+\date{Zagreb, \displaydate{date}\footnote{datum zadnje izmjene: \today}}
+\maketitle
+\bigskip
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+\newpage
+
+\include{1.tex}
+\newpage
+\include{2.tex}
+\newpage
+\include{3.tex}
+\newpage
+\printbibliography
+
+\end{document}
+
+

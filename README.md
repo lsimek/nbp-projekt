@@ -1,3 +1,3 @@
-projektni zadatak iz kolegija Napredne baze podataka
+Projekt iz kolegija Napredne baze podataka
 
-rad u tijeku...
+v. tex/seminar.pdf i tex/prezentacija.pdf
