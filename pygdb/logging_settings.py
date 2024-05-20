@@ -1,3 +1,7 @@
+"""
+logger, can be modified to output
+either to a file or stdout
+"""
 import logging
 import sys
 
