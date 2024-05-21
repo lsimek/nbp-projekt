@@ -7,6 +7,7 @@ import ast
 from typing import Union, List
 from copy import copy, deepcopy
 
+
 class SContext:
     """
     class for context during ast traversal
@@ -16,9 +17,12 @@ class SContext:
     def __init__(
             self,
             ast_node: ast.AST,
-            ast_parent=None,  # type: Union[SContext, None]
+            parent=None,  # type: Union[SContext, None]
+            snode=None,
             namespace: List[str] = [],
+            filename: str = None,
     ):
         self.ast_node = copy(ast_node)
-        self.ast_parent = copy(ast_parent)
+        self.parent = copy(parent)
+        self.snode = snode
         self.namespace = copy(namespace)

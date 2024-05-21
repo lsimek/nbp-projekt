@@ -14,10 +14,12 @@ from typing import Union, Tuple, List, Dict
 
 class SNodeType(Enum):
     Name = 'name'
-    Imported = 'imported'
+    # Imported = 'imported'
+    Argument = 'argument'
     Attribute = 'attribute'
     Module = 'module'
     Package = 'package'
+    Lambda = 'lambda'
     Function = 'function'
     Class = 'class'
 
@@ -32,9 +34,10 @@ class SNode:
             code: Union[str, None] = None,
             snodetype: SNodeType = SNodeType.Name,
             pythontype: Union[str, None] = None,
-            conditional: Union[bool, None] = None
+            conditional: Union[bool, None] = None,
+            other_attrs: Dict = {},
     ):
-        auto_init(self, locals())
+        auto_init(locals(), self)
         self.name = self.fullname[self.fullname.rfind('.') + 1:]
 
 
@@ -50,7 +53,7 @@ class SEdgeType(Enum):
     Decorates = 'DECORATES'
     WithinScope = 'WITHIN_SCOPE'
     TypedWith = 'TYPED_WITH'
-
+    Returns = 'RETURNS'
 
 
 class SEdge:
@@ -73,7 +76,7 @@ class SGraph:
     def __init__(self):
         """
         dictionary of the form
-        node fullname: SNode object
+            node fullname: SNode object
         list of edges
         """
         self.nodes: Dict[SNode] = {}
@@ -96,7 +99,7 @@ class SGraph:
 
     def _add_edge(self, edge: SEdge):
         first, second = edge.nodes
-        if first.fullname in self.nodes.keys() and second.fullname in self.nodes.keys():
+        if first.fullname in self.nodes and second.fullname in self.nodes:
             self.edges.append(edge)
         else:
             raise ValueError(f'Nodes referenced (fullnames {edge.nodes[0].fullname} and {edge.nodes[1].fullname})'
@@ -109,7 +112,27 @@ class SGraph:
             else:
                 raise TypeError(f'Edges must be of type `SEdge`, {type(edge)} was passed instead.')
 
-    def visualize(self, output_filename='../_', view=False):
+    def augment_node(self, node: SNode) -> SNode:
+        """
+        if node does not exist, add it and return it
+        if node does exist, merge the new node into existing and return it
+        """
+        if node.fullname not in self.nodes.keys():
+            self.nodes.update({
+                node.fullname: node
+            })
+            return node
+        else:
+            old_node = self.nodes.get(node.fullname)
+            if old_node.snodetype == SNodeType.Name:
+                old_node.snodepe = node.snodetype
+            for attr in dir(node):
+                if attr != 'fullname' and attr != 'other_attrs':
+                    setattr(old_node, attr, getattr(node, attr))
+            old_node.other_attrs.update(node.other_attrs)
+            return old_node
+
+    def visualize(self, output_filename='../_', view=False, fontsize=11) -> None:
         """
         visualize sgraph using graphviz
         """
@@ -117,15 +140,19 @@ class SGraph:
         for fullname, node in self.nodes.items():
             gvgraph.node(
                 id(node).__str__(),
-                node.snodetype + fullname,
-                fontname='Courier New'
+                '\n'.join([node.snodetype.value, fullname, node.name]),
+                fontname='Courier New',
+                fontsize=str(fontsize)
             )
 
         for edge in self.edges:
             first, second = edge.nodes
             gvgraph.edge(
                 id(first).__str__(),
-                id(second).__str__()
+                id(second).__str__(),
+                label=edge.sedgetype.value,
+                fontname='Courier New',
+                fontsize=str(fontsize - 3)
             )
 
         gvgraph.render(output_filename, format='png', view=view)

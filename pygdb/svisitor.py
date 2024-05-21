@@ -18,6 +18,9 @@ class SVisitor:
     def __init__(self):
         self.sgraph: SGraph = SGraph()
         self.stack: Deque[SContext] = deque()
+        self.filepath = None
+        self.code = None
+        self.namespace=['root']
 
     def single_file(self, filepath: str, namespace: List[str]=['root']):
         """
@@ -28,16 +31,18 @@ class SVisitor:
             logger.warning(f'{filepath} is not a Python file.')
             return
 
+        logger.info(f'Analyzing file {filepath}...')
+        self.filepath = filepath
         with open(filepath, 'r') as file:
-            code = file.read()
-        tree = ast.parse(code)
+            self.code = file.read()
+        tree = ast.parse(self.code)
 
         # add root (ast.Module) to stack with data
         self.stack.append(
             SContext(
                 ast_node=tree,
-                ast_parent=None,
-                namespace=namespace
+                parent=None,
+                namespace=namespace,
             )
         )
 
