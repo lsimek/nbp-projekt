@@ -4,41 +4,11 @@ to be later imported into a database
 """
 from graphviz import Digraph
 
-from utils import auto_init
 from logging_settings import logger
+from snode import SNode, Dotstring, SNodeType
 
-import ast
 from enum import Enum
-from typing import Union, Tuple, List, Dict
-
-
-class SNodeType(Enum):
-    Name = 'name'
-    # Imported = 'imported'
-    Argument = 'argument'
-    Attribute = 'attribute'
-    Module = 'module'
-    Package = 'package'
-    Lambda = 'lambda'
-    Function = 'function'
-    Class = 'class'
-
-
-class SNode:
-    def __init__(
-            self,
-            fullname: str,
-            filename: Union[str, None] = None,
-            docstring: Union[str, None] = None,
-            lineno: Union[int, None] = None,
-            code: Union[str, None] = None,
-            snodetype: SNodeType = SNodeType.Name,
-            pythontype: Union[str, None] = None,
-            conditional: Union[bool, None] = None,
-            other_attrs: Dict = {},
-    ):
-        auto_init(locals(), self)
-        self.name = self.fullname[self.fullname.rfind('.') + 1:]
+from typing import Tuple, List, Dict
 
 
 class SEdgeType(Enum):
@@ -54,6 +24,9 @@ class SEdgeType(Enum):
     WithinScope = 'WITHIN_SCOPE'
     TypedWith = 'TYPED_WITH'
     Returns = 'RETURNS'
+
+    # only implementation
+    Equivalent = 'EQUIVALENT'
 
 
 class SEdge:
@@ -79,11 +52,11 @@ class SGraph:
             node fullname: SNode object
         list of edges
         """
-        self.nodes: Dict[SNode] = {}
+        self.nodes: Dict[Dotstring, SNode] = {}
         self.edges: List[SEdge] = []
 
     def _add_node(self, node: SNode):
-        if node.fullname not in self.nodes.keys():
+        if node.fullname not in self.nodes:
             self.nodes.update({
                 node.fullname: node
             })
@@ -102,7 +75,7 @@ class SGraph:
         if first.fullname in self.nodes and second.fullname in self.nodes:
             self.edges.append(edge)
         else:
-            raise ValueError(f'Nodes referenced (fullnames {edge.nodes[0].fullname} and {edge.nodes[1].fullname})'
+            raise ValueError(f'Nodes referenced (fullnames {first} and {second})'
                              f'do not exist.')
 
     def add_edges(self, *edges):
@@ -125,11 +98,11 @@ class SGraph:
         else:
             old_node = self.nodes.get(node.fullname)
             if old_node.snodetype == SNodeType.Name:
-                old_node.snodepe = node.snodetype
+                old_node.snodetype = node.snodetype
             for attr in dir(node):
                 if attr != 'fullname' and attr != 'other_attrs':
                     setattr(old_node, attr, getattr(node, attr))
-            old_node.other_attrs.update(node.other_attrs)
+            old_node.attrs.update(node.attrs)
             return old_node
 
     def visualize(self, output_filename='../_', view=False, fontsize=11) -> None:

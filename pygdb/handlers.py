@@ -177,7 +177,7 @@ def functiondef_handler(svisitor, top_node):
         ))
 
     # arguments and their types
-    if hasattr(top_node.ast_node, 'arguments'):
+    if hasattr(top_node.ast_node, 'args'):
         args_node = top_node.ast_node.arguments
         # indicators=(
         #     ['posonly'] * len(args_node.posonlyargs) +
