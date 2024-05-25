@@ -25,9 +25,6 @@ class SEdgeType(Enum):
     TypedWith = 'TYPED_WITH'
     Returns = 'RETURNS'
 
-    # only implementation
-    Equivalent = 'EQUIVALENT'
-
 
 class SEdge:
     def __init__(
@@ -61,7 +58,7 @@ class SGraph:
                 node.fullname: node
             })
         else:
-            logger.warning(f'Node `{node.fullname}` already exists.')
+            logger.warning(f'Node `{node.fullname}` already exists. No actions taken.')
 
     def add_nodes(self, *nodes):
         for node in nodes:
@@ -72,11 +69,12 @@ class SGraph:
 
     def _add_edge(self, edge: SEdge):
         first, second = edge.nodes
-        if first.fullname in self.nodes and second.fullname in self.nodes:
-            self.edges.append(edge)
-        else:
-            raise ValueError(f'Nodes referenced (fullnames {first} and {second})'
-                             f'do not exist.')
+        if first.fullname not in self.nodes:
+            raise ValueError(f'Node {first} does not exist.')
+        if second.fullname not in self.nodes:
+            raise ValueError(f'Node {first} does not exist.')
+
+        self.edges.append(edge)
 
     def add_edges(self, *edges):
         for edge in edges:

@@ -1,7 +1,7 @@
 import ast
 from enum import Enum
 from logging_settings import logger
-from typing import Union, Tuple, List, Dict
+from typing import Optional, Tuple, List, Dict
 
 
 class Dotstring(str):
@@ -27,6 +27,9 @@ class Dotstring(str):
         ridx = self.rfind('.')
         return self[ridx+1:]
 
+    def concat(self, other):
+        return Dotstring(self + '.' + other)
+
 
 
 class SNodeType(Enum):
@@ -46,12 +49,14 @@ class SNode:
             self,
             fullname: Dotstring,
             namespace: Dotstring = None,
-            modulename: str = None,
-            packagename: str = None,
+            modulename: Optional[str] = None,
+            packagename: Optional[str] = None,
             snodetype: SNodeType = SNodeType.Name,
-            parent=None,  # type: SNode
-            ast_node: ast.AST = None,
-            **attrs: Dict
+            scope_dict: Dict[Dotstring, Dotstring] = None,
+            scope_parent=None,
+            ast_parent=None,
+            ast_node: Optional[ast.AST] = None,
+            **attrs
     ):
         self.fullname = fullname
         self.name = fullname.last
@@ -59,8 +64,20 @@ class SNode:
         self.modulename = modulename
         self.packagename = packagename
         self.snodetype = snodetype
-        self.parent = parent
+
+        # dictionary of {local_name: global_name} 
+        self.scope_dict = scope_dict
+        
+        # parent in context of scope
+        self.scope_parent = scope_parent
+        
+        # oarent in context of AST
+        self.ast_parent = ast_parent
+        
+        # related AST node if any
         self.ast_node = ast_node
+
+        # dictionary of other attributes
         self.attrs = attrs
 
     @property
@@ -69,3 +86,9 @@ class SNode:
 
     def add_to_attrs(self, **new_attrs):
         self.attrs.update(new_attrs)
+
+    def get_local(self, name):
+        return self.scope_dict.get(self.fullname.concat(name))
+
+    def __repr__(self):
+        return self.fullname

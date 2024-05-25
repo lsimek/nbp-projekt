@@ -5,8 +5,8 @@ during traversal
 from logging_settings import logger
 # from sgraph import *
 from sgraph import SNode, SNodeType, SEdge, SEdgeType, SGraph
-from scontext import SContext
-from utils import resolve_attrs
+# from scontext import SContext
+# from utils import resolve_attrs
 
 import ast
 import builtins
