@@ -139,27 +139,32 @@ class SVisitor:
                 top_namespace = top_snode.namespace.concat(name_list[0])
 
                 for name in name_list[1:]:
+                    # check if already exists
+                    new_fullname = top_namespace.concat(name)
+                    new_snode = self.get_snode(new_fullname)
+
                     # make new snode
-                    new_snode = SNode(
-                        fullname=top_namespace.concat(name),
-                        name=top_snode.name.concat(name),
-                        namespace=top_namespace,
-                        modulename=module_name,
-                        packagename=root_snode.fullname,
-                        snodetype=SNodeType.Name,
-                        scope_dict={},
-                        scope_parent=top_snode,
-                    )
+                    if new_snode is None:
+                        new_snode = SNode(
+                            fullname=top_namespace.concat(name),
+                            name=top_snode.name.concat(name),
+                            namespace=top_namespace,
+                            modulename=module_name,
+                            packagename=root_snode.fullname,
+                            snodetype=SNodeType.Name,
+                            scope_dict={},
+                            scope_parent=top_snode,
+                        )
 
-                    # add to graph
-                    self.add_snodes(new_snode)
+                        # add to graph
+                        self.add_snodes(new_snode)
 
-                    # connect with 'AttributeOf' SEdge
-                    new_sedge = SEdge((new_snode, top_snode), SEdgeType.AttributeOf)
-                    self.add_sedges(new_sedge)
+                        # connect with 'AttributeOf' SEdge
+                        new_sedge = SEdge((new_snode, top_snode), SEdgeType.AttributeOf)
+                        self.add_sedges(new_sedge)
 
-                    # propagate in scope
-                    self.propagate_scope(top_snode, {new_snode.fullname: new_snode.fullname})
+                        # propagate in scope
+                        self.propagate_scope(top_snode, {new_snode.fullname: new_snode.fullname})
 
                     # set future top_node and top_namespace
                     top_namespace = top_namespace.concat(name)
