@@ -96,7 +96,7 @@ class SVisitor:
             for child in top_table.get_children():
                 child_fullname = top_snode.get_local(child.get_name())
                 child_snode = self.get_snode(child_fullname)
-                child_snode.snodetype = SNodeType.Function if type(child_snode) is symtable.Function else SNodeType.Class
+                child_snode.snodetype = SNodeType.Function if child.get_type() == 'function' else SNodeType.Class
                 symbol_stack.append((child, child_snode, ))
                 logger.debug(f'Added to stack {child_snode}')
 

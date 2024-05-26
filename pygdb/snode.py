@@ -37,11 +37,11 @@ class Dotstring(str):
 
 class SNodeType(Enum):
     Name = 'name'
-    Imported = 'imported'
-    Argument = 'argument'
+    # Imported = 'imported'
+    # Argument = 'argument'
     Module = 'module'
     Package = 'package'
-    Lambda = 'lambda'
+    # Lambda = 'lambda'
     Function = 'function'
     Class = 'class'
 
@@ -62,7 +62,7 @@ class SNode:
             **attrs
     ):
         self.fullname = fullname
-        self.name = Dotstring(name) or fullname.last
+        self.name = Dotstring(name) if name is not None else fullname.last
         self.namespace = namespace
         self.modulename = modulename
         self.packagename = packagename

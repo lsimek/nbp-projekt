@@ -83,17 +83,35 @@ class SGraph:
             else:
                 raise TypeError(f'Edges must be of type `SEdge`, {type(edge)} was passed instead.')
 
-    def visualize(self, output_filename='../_', view=False, fontsize=11) -> None:
+    def visualize(self, output_filename='../_', im_format='png', view=False) -> None:
         """
         visualize sgraph using graphviz
         """
+        vis_dict_node = {
+            SNodeType.Package: dict(shape='folder'),
+            SNodeType.Module: dict(shape='box3d'),
+            SNodeType.Class: dict(shape='box'),
+            SNodeType.Function: dict(shape='invhouse'),
+            SNodeType.Name: dict(shape='ellipse'),
+        }
+
+        vis_dict_edge = {
+            SEdgeType.WithinScope: dict(style='dotted', arrowhead='vee'),
+            SEdgeType.AttributeOf: dict(style='dashed', arrowhead='vee'),
+        }
+
         gvgraph = Digraph()
         for fullname, node in self.nodes.items():
             gvgraph.node(
                 id(node).__str__(),
-                '\n'.join([node.snodetype.value, fullname, node.name]),
+                label=''.join([
+                     '<<FONT COLOR="#444444"><I>{}</I></FONT><BR/>'.format(node.snodetype.value),
+                     '<B>{}</B><BR/>'.format(node.name),
+                     '<FONT POINT-SIZE="8">{}</FONT>>'.format(fullname)
+                 ]),
                 fontname='Courier New',
-                fontsize=str(fontsize),
+                fontsize='11',
+                **vis_dict_node.get(node.snodetype, dict(shape='ellipse'))
             )
 
         for edge in self.edges:
@@ -103,7 +121,8 @@ class SGraph:
                 id(second).__str__(),
                 label=edge.sedgetype.value,
                 fontname='Courier New',
-                fontsize=str(fontsize - 3)
+                fontsize='8',
+                **vis_dict_edge.get(edge.sedgetype, dict(style='solid', arrowhead='vee'))
             )
 
-        gvgraph.render(output_filename, format='png', view=view)
+        gvgraph.render(output_filename, format=im_format, view=view)
