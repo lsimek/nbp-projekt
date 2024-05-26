@@ -1,7 +1,7 @@
 import ast
 from enum import Enum
 from logging_settings import logger
-from typing import Optional, Tuple, List, Dict
+from typing import Optional, Tuple, List, Dict, Union
 
 
 class Dotstring(str):
@@ -10,7 +10,7 @@ class Dotstring(str):
         return self.split('.')
 
     def k_block(self, k):
-        return self.split('.')[:k]
+        return self.split('.')[k]
 
     @property
     def wo_first(self):
@@ -28,15 +28,17 @@ class Dotstring(str):
         return self[ridx+1:]
 
     def concat(self, other):
-        return Dotstring(self + '.' + other)
+        return Dotstring(self + '.' + other) if self else other
 
+    @staticmethod
+    def from_list(li: List):
+        return Dotstring('.'.join(li))
 
 
 class SNodeType(Enum):
     Name = 'name'
     Imported = 'imported'
     Argument = 'argument'
-    Attribute = 'attribute'
     Module = 'module'
     Package = 'package'
     Lambda = 'lambda'
@@ -48,6 +50,7 @@ class SNode:
     def __init__(
             self,
             fullname: Dotstring,
+            name: Optional[Union[str, Dotstring]] = None,
             namespace: Dotstring = None,
             modulename: Optional[str] = None,
             packagename: Optional[str] = None,
@@ -59,7 +62,7 @@ class SNode:
             **attrs
     ):
         self.fullname = fullname
-        self.name = fullname.last
+        self.name = Dotstring(name) or fullname.last
         self.namespace = namespace
         self.modulename = modulename
         self.packagename = packagename
@@ -71,7 +74,7 @@ class SNode:
         # parent in context of scope
         self.scope_parent = scope_parent
         
-        # oarent in context of AST
+        # parent in context of AST
         self.ast_parent = ast_parent
         
         # related AST node if any
@@ -82,7 +85,7 @@ class SNode:
 
     @property
     def parent_ast_node(self):
-        return self.parent.ast_node
+        return self.ast_parent.ast_node
 
     def add_to_attrs(self, **new_attrs):
         self.attrs.update(new_attrs)

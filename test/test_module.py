@@ -1,5 +1,6 @@
 """
-module for testing and debugging
+standalone module
+for testing and debugging
 """
 
 import ast
@@ -28,6 +29,9 @@ class A:
     """
 
     new_var = 5
+    a.b.c.d.e = 10
+    new_name = SomeClass()  # wo this line, new_name is marked as imported
+    new_name.b.c.d.e = 10
 
     def __init__(self, a, b, c):
         self.a = a
