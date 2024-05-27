@@ -1,7 +1,6 @@
 import ast
 from enum import Enum
-from logging_settings import logger
-from typing import Optional, Tuple, List, Dict, Union
+from typing import Optional, List, Dict, Union
 
 
 class Dotstring(str):
@@ -34,6 +33,22 @@ class Dotstring(str):
     def from_list(li: List):
         return Dotstring('.'.join(li))
 
+    def concat_rel(self, suffix: str):
+        buffer = self
+
+        if suffix.startswith('.'):
+            suffix = suffix[1:]
+
+        if suffix.startswith('..'):
+            buffer = self.wo_last
+
+        segments = suffix.split('..')
+        for segment in segments[:-1]:
+            buffer = buffer.concat(segment)
+
+        buffer = buffer.concat(segments[-1])
+        return buffer
+
 
 class SNodeType(Enum):
     Name = 'name'
@@ -51,7 +66,7 @@ class SNode:
             self,
             fullname: Dotstring,
             name: Optional[Union[str, Dotstring]] = None,
-            namespace: Dotstring = None,
+            namespace: Optional[Dotstring] = None,
             modulename: Optional[str] = None,
             packagename: Optional[str] = None,
             snodetype: SNodeType = SNodeType.Name,

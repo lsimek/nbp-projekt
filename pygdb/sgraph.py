@@ -17,7 +17,7 @@ class SEdgeType(Enum):
     Arg = 'ARG'
     AsArg = 'AS_ARG'
     AttributeOf = 'ATTRIBUTE_OF'
-    ImportedFrom = 'IMPORTED_FROM'
+    ImportsFrom = 'IMPORTS_FROM'
     PartOf = 'PART_OF'
     Method = 'METHOD'
     AssignedAs = 'ASSIGNED_AS'

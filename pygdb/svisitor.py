@@ -6,7 +6,9 @@ from handlers import *
 import ast
 import symtable
 from collections import deque
-from typing import Dict, Optional, Deque, Tuple, Union
+from typing import List, Dict, Deque, Tuple, Union, Optional
+import os
+import pathlib
 
 
 class SVisitor:
@@ -18,51 +20,121 @@ class SVisitor:
         self.stack: Deque[SNode] = deque()
         self.root_namespace = root_namespace
 
-    def single_file_first_pass(self, filepath: str, root_snode: Optional[SNode] = None) -> None:
-        """
-        first pass for a single file
-        """
-        if not filepath.endswith('.py'):
-            raise ValueError(f'`filepath` should lead to .py file, {filepath} was passed')
-        module_name = filepath[filepath.rfind('/')+1:]
-        module_name = module_name[:-len('.py')]
-        logger.info(f'Starting symbol pass for file {module_name} (package: {root_snode})')
+    def scan_package(self, root_dir: Union[str, pathlib.Path]):
+        root_path = pathlib.Path(root_dir).resolve()
+        os.chdir(root_path)
+        logger.info(f'Scanning package at root location {root_path}, abs. path {root_path.resolve()}')
 
-        with open(filepath, 'r') as file:
-            code = file.read()
+        # path relative to root_path
+        def relpath(str_path):
+            return pathlib.Path(str_path).resolve().relative_to(root_path)
 
-        table = symtable.symtable(code, filepath, compile_type='exec')
+        root_snode = SNode(
+            fullname=Dotstring(self.root_namespace),
+            namespace=Dotstring(self.root_namespace),
+            packagename=self.root_namespace,
+            snodetype=SNodeType.Package,
+            scope_dict={},
+        )
+        self.add_snodes(root_snode)
+        # add __init__ file to module_list if it exists?
+
+        # stack to traverse directories
+        stack: Deque[Tuple[SNode, pathlib.Path]] = deque()
+        stack.append((root_snode, root_path, ))
+
+        # list of modules to analyze (and package = __init__)
+        module_list: List[SNode] = []
+
+        while stack:
+            package_snode, package_path = stack.pop()
+            logger.debug(f'Traversing files at {relpath(package_path)}')
+            # add folders and .py modules as children to package_snode
+            # stop if a folder contains no .py files
+
+            new_dict: Dict[Dotstring, Dotstring] = {}
+
+            for subpath in os.listdir(package_path):
+                if os.path.isfile(package_path/subpath) and subpath.endswith('.py') and subpath != '__init__.py':
+                    # insert module node to graph and module_list
+                    # propagate in scope_dict
+                    module_name = subpath[:-len('.py')]
+
+                    module_snode = SNode(
+                        fullname=package_snode.fullname.concat(module_name),
+                        namespace=package_snode.fullname,
+                        packagename=package_snode.name,
+                        snodetype=SNodeType.Module,
+                        scope_dict={},
+                        scope_parent=package_snode,
+                        __imports_from__=[],
+                        __code__=open(package_path/subpath).read(),
+                        __filepath__=relpath(package_path/subpath)
+                    )
+
+                    logger.debug(f'Adding new module {module_snode.fullname}')
+                    self.add_snodes(module_snode)
+                    self.add_sedges(SEdge((module_snode, package_snode, ), SEdgeType.WithinScope))
+
+                    module_list.append(module_snode)
+                    new_dict[module_snode.fullname] = module_snode.fullname
+
+                # add package if there are any .py files inside
+                elif os.path.isdir(package_path/subpath) and any([filename.endswith('py') for filename in os.listdir(package_path/subpath)]):
+                    # add folder as package if it has any .py files
+                    # then also add to stack
+
+                    # check for __init__.py
+                    hasinit = os.path.exists(initpath := package_path/subpath/pathlib.Path('__init__.py'))
+
+                    new_package_snode = SNode(
+                        fullname=package_snode.fullname.concat(subpath),
+                        namespace=package_snode.fullname,
+                        packagename=package_snode.fullname,
+                        snodetype=SNodeType.Package,
+                        scope_dict={},
+                        scope_parent=package_snode,
+                        hasinit=hasinit,
+                        __imports_from__=[],
+                        __code__=open(initpath).read() if hasinit else None,
+                        __filepath__=relpath(initpath) if hasinit else None
+                    )
+
+                    logger.debug(f'Adding new package {new_package_snode.fullname}')
+                    self.add_snodes(new_package_snode)
+                    self.add_sedges(SEdge((new_package_snode, package_snode, ), SEdgeType.WithinScope))
+
+                    module_list.append(new_package_snode)
+                    new_dict[new_package_snode.fullname] = new_package_snode.fullname
+
+                    stack.append((new_package_snode, package_path/subpath))
+
+            self.propagate_scope(package_snode, new_dict)
+
+        logger.info('File traversal finished. Starting first pass.')
+        for module_snode in module_list:
+            self.first_pass(module_snode)
+        logger.info('First passes finished. Starting second pass.')
+        for module_snode in module_list:
+            self.second_pass(module_snode)
+        logger.info('Second passes finished. Starting third pass.')
+
+    def first_pass(self, module_snode: SNode):
+        logger.info(f'First pass for {module_snode.fullname}')
+        code = module_snode.attrs.get('__code__')
+        if code is None:
+            logger.debug(f'No code for module/package {module_snode.fullname}')
+            return
+
+        table = symtable.symtable(code, module_snode.attrs.get('__filepath__'), compile_type='exec')
+        module_name = module_snode.name
+
         symbol_stack: Deque[Tuple[symtable.SymbolTable, SNode]] = deque()
 
-        # this should be project/subpackage root
-        if root_snode is None:
-            root_snode = SNode(
-                fullname=Dotstring(self.root_namespace),
-                namespace=Dotstring(self.root_namespace),
-                packagename=self.root_namespace,
-                snodetype=SNodeType.Package,
-                scope_dict={}
-            )
-
-        module_snode = SNode(
-            fullname=root_snode.fullname.concat(module_name),
-            name=module_name,
-            namespace=root_snode.fullname,
-            packagename=self.root_namespace,
-            snodetype=SNodeType.Module,
-            scope_dict={},
-            scope_parent=root_snode,
-        )
-
-        self.add_snodes(root_snode, module_snode)
-        self.add_sedges(SEdge((root_snode, module_snode, ), SEdgeType.WithinScope))
-
-        # first part: go through symbol table
-        symbol_stack.append((table, module_snode, ))
+        # traverse symbol table
+        symbol_stack.append((table, module_snode,))
         while symbol_stack:
             top_table, top_snode = symbol_stack.pop()
-            if not isinstance(top_table, symtable.SymbolTable) or not isinstance(top_snode, SNode):
-                raise TypeError(f'Elements of stack must be tuples (symtable.SymbolTable, SNode), ({type(top_table)}, {type(top_snode)}) passed instead')
             logger.debug(f'Checking symbols in namespace {top_snode.fullname}')
 
             new_dict = {}
@@ -75,7 +147,7 @@ class SVisitor:
                     name=symbol.get_name(),
                     namespace=top_snode.fullname,
                     modulename=module_name,
-                    packagename=root_snode.fullname,
+                    packagename=module_snode.packagename,
                     snodetype=SNodeType.Name,
                     scope_dict={},
                     scope_parent=top_snode,
@@ -84,9 +156,9 @@ class SVisitor:
                 new_dict[new_snode.fullname] = new_snode.fullname
                 self.add_snodes(new_snode)
                 self.add_sedges(SEdge(
-                        (top_snode, new_snode),
-                        SEdgeType.WithinScope
-                    ))
+                    (new_snode, top_snode),
+                    SEdgeType.WithinScope
+                ))
                 logger.debug(f'Added symbol {new_snode.name}')
 
             # propagate all new names to own scope and parents' scopes
@@ -97,16 +169,22 @@ class SVisitor:
                 child_fullname = top_snode.get_local(child.get_name())
                 child_snode = self.get_snode(child_fullname)
                 child_snode.snodetype = SNodeType.Function if child.get_type() == 'function' else SNodeType.Class
-                symbol_stack.append((child, child_snode, ))
+                symbol_stack.append((child, child_snode,))
                 logger.debug(f'Added to stack {child_snode}')
 
-        # second part: add all attributes
-        logger.info(f'Starting attr pass for file {module_name} (package: {root_snode})')
+    def second_pass(self, module_snode: SNode):
+        logger.info(f'Starting second pass for file {module_snode.fullname} (package: {module_snode.packagename})')
+        code = module_snode.attrs.get('__code__')
+        if code is None:
+            logger.debug(f'No code for module/package {module_snode.fullname}')
+            return
+
         tree = ast.parse(code)
+        module_snode.add_to_attrs(__ast__=tree)
 
         fp_stack: Deque[Tuple[Dotstring, ast.AST]] = deque()
         module_snode.ast_node = tree
-        fp_stack.append((module_snode.fullname, tree, ))
+        fp_stack.append((module_snode.fullname, tree,))
 
         while fp_stack:
             top_namespace, top_node = fp_stack.pop()
@@ -122,13 +200,12 @@ class SVisitor:
 
                 name_list.append(node.id)
                 name_list = name_list[::-1]
-                top_snode = self.resolve_name(self.get_snode(top_namespace), name_list[0], allow_none=False)
+                top_snode = self.resolve_name(self.get_snode(top_namespace), name_list[0])
 
                 logger.debug(f'Attribute chain found: {name_list}')
 
                 if top_snode is None:
                     # imported name
-                    logger.debug(f'Import detected with implicit fullname {top_namespace.concat(name_list[0])}')
                     continue
 
                 if name_list[0] == 'self':
@@ -149,8 +226,8 @@ class SVisitor:
                             fullname=top_namespace.concat(name),
                             name=top_snode.name.concat(name),
                             namespace=top_namespace,
-                            modulename=module_name,
-                            packagename=root_snode.fullname,
+                            modulename=module_snode.name,
+                            packagename=module_snode.packagename,
                             snodetype=SNodeType.Name,
                             scope_dict={},
                             scope_parent=top_snode,
@@ -173,6 +250,25 @@ class SVisitor:
                 # add the list to AST node
                 top_node.list = name_list
 
+            # import handling in second pass
+            # what about a package wo __init__?
+            elif isinstance(top_node, (ast.Import, ast.ImportFrom, )):
+                names_list = [name.name for name in top_node.names] if isinstance(top_node, ast.Import) else [top_node.module]
+
+                for name in names_list:
+                    if module_snode.snodetype is SNodeType.Module:
+                        source_fullname = module_snode.scope_parent.fullname
+                    else:
+                        source_fullname = module_snode.fullname
+
+                    imported_fullname = source_fullname.concat_rel(name)
+                    imported_snode = self.get_snode(imported_fullname)
+
+                    if imported_snode is not None:
+                        logger.debug(f'Import detected in second pass: {module_snode} <- {imported_snode}')
+                        module_snode.attrs.get('__imports_from__').append(imported_snode)
+                        self.add_sedges(SEdge((module_snode, imported_snode,), SEdgeType.ImportsFrom))
+
             else:
                 new_namespace = top_namespace
                 if isinstance(top_node, ast.ClassDef) or isinstance(top_node, ast.FunctionDef):
@@ -183,6 +279,11 @@ class SVisitor:
                 for child in ast.iter_child_nodes(top_node):
                     fp_stack.append((new_namespace, child))
 
+
+    def third_pass(self, module_snode: SNode):
+        pass
+
+    # @deprecated
     def single_file_third_pass(self, filepath: str) -> None:
         """
         name to be changed

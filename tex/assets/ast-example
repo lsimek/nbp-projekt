@@ -1,37 +1,23 @@
 digraph {
-	128435084902352 [label=Module fontname="Courier New"]
-	128435084902288 [label=Assign fontname="Courier New"]
-	128435084902352 -> 128435084902288
-	128435084902224 [label="Name\nx" fontname="Courier New"]
-	128435084902288 -> 128435084902224
-	128435084902160 [label="Constant\n1" fontname="Courier New"]
-	128435084902288 -> 128435084902160
-	128435084902096 [label="ClassDef\nA" fontname="Courier New"]
-	128435084902352 -> 128435084902096
-	128435084902032 [label="FunctionDef\n__init__" fontname="Courier New"]
-	128435084902096 -> 128435084902032
-	128435084901968 [label=arguments fontname="Courier New"]
-	128435084902032 -> 128435084901968
-	128435084901904 [label="arg\nself" fontname="Courier New"]
-	128435084901968 -> 128435084901904
-	128435094964944 [label="arg\nx" fontname="Courier New"]
-	128435084901968 -> 128435094964944
-	128435084901840 [label="Constant\n5" fontname="Courier New"]
-	128435084901968 -> 128435084901840
-	128435084901776 [label=Assign fontname="Courier New"]
-	128435084902032 -> 128435084901776
-	128435084901712 [label="Attribute\nx" fontname="Courier New"]
-	128435084901776 -> 128435084901712
-	128435084901648 [label="Name\nself" fontname="Courier New"]
-	128435084901712 -> 128435084901648
-	128435084901584 [label="Name\nx" fontname="Courier New"]
-	128435084901776 -> 128435084901584
-	128435084901456 [label=Assign fontname="Courier New"]
-	128435084902352 -> 128435084901456
-	128435084901392 [label="Name\na" fontname="Courier New"]
-	128435084901456 -> 128435084901392
-	128435084901200 [label=Call fontname="Courier New"]
-	128435084901456 -> 128435084901200
-	128435084901136 [label="Name\nA" fontname="Courier New"]
-	128435084901200 -> 128435084901136
+	132191382218192 [label=Module fontname="Courier New"]
+	132191382354768 [label=Import fontname="Courier New"]
+	132191382218192 -> 132191382354768
+	132191382355344 [label="alias\np1.m1" fontname="Courier New"]
+	132191382354768 -> 132191382355344
+	132191382355152 [label="alias\np2.m2" fontname="Courier New"]
+	132191382354768 -> 132191382355152
+	132191382354256 [label=Import fontname="Courier New"]
+	132191382218192 -> 132191382354256
+	132191382355024 [label="alias\np2.p3.p4.m5" fontname="Courier New"]
+	132191382354256 -> 132191382355024
+	132191382351248 [label=ImportFrom fontname="Courier New"]
+	132191382218192 -> 132191382351248
+	132191382354896 [label="alias\nother_class1" fontname="Courier New"]
+	132191382351248 -> 132191382354896
+	132191382351184 [label="alias\nother_class2" fontname="Courier New"]
+	132191382351248 -> 132191382351184
+	132191382354960 [label=ImportFrom fontname="Courier New"]
+	132191382218192 -> 132191382354960
+	132191382353872 [label="alias\nsomestuff" fontname="Courier New"]
+	132191382354960 -> 132191382353872
 }
