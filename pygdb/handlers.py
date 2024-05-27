@@ -1,13 +1,9 @@
 """
 handlers for various ast nodes
-during traversal
-not functional in this commit
+during third pass
 """
 from logging_settings import logger
-# from sgraph import *
 from sgraph import SNode, SNodeType, SEdge, SEdgeType, SGraph
-# from scontext import SContext
-# from utils import resolve_attrs
 
 import ast
 import builtins

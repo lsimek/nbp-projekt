@@ -4,6 +4,9 @@ from typing import Optional, List, Dict, Union
 
 
 class Dotstring(str):
+    def __getitem__(self, *args, **kwargs):
+        return Dotstring(super().__getitem__(*args, **kwargs))
+
     @property
     def blocks(self):
         return self.split('.')
@@ -14,20 +17,27 @@ class Dotstring(str):
     @property
     def wo_first(self):
         idx = self.find('.')
-        return self[idx+1:]
+        return self[idx+1:] if idx != -1 else Dotstring('')
 
     @property
     def wo_last(self):
         ridx = self.rfind('.')
-        return self[:ridx]
+        return self[:ridx] if ridx != -1 else Dotstring('')
 
     @property
     def last(self):
         ridx = self.rfind('.')
-        return self[ridx+1:]
+        return self[ridx+1:] if ridx != -1 else self
 
     def concat(self, other):
-        return Dotstring(self + '.' + other) if self else other
+        if self and other:
+            return Dotstring(self + '.' + other)
+        elif self:
+            return self
+        elif other:
+            return Dotstring(other)
+        else:
+            return ''
 
     @staticmethod
     def from_list(li: List):
@@ -36,29 +46,28 @@ class Dotstring(str):
     def concat_rel(self, suffix: str):
         buffer = self
 
+        if suffix.startswith('..'):
+            buffer = buffer.wo_last
+            suffix = suffix[2:]
+
         if suffix.startswith('.'):
             suffix = suffix[1:]
 
-        if suffix.startswith('..'):
-            buffer = self.wo_last
-
         segments = suffix.split('..')
         for segment in segments[:-1]:
-            buffer = buffer.concat(segment)
+            buffer = buffer.concat(Dotstring(segment).wo_last)
 
         buffer = buffer.concat(segments[-1])
         return buffer
 
 
 class SNodeType(Enum):
-    Name = 'name'
-    # Imported = 'imported'
-    # Argument = 'argument'
-    Module = 'module'
-    Package = 'package'
-    # Lambda = 'lambda'
-    Function = 'function'
-    Class = 'class'
+    Name = 'Name'
+    Module = 'Module'
+    Package = 'Package'
+    Function = 'Function'
+    Class = 'Class'
+    BuiltIn = 'BuiltIn'
 
 
 class SNode:

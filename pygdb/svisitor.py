@@ -1,7 +1,7 @@
 from logging_settings import logger
 from sgraph import SEdgeType, SEdge, SGraph
 from snode import SNodeType, SNode, Dotstring
-from handlers import *
+from handlers import handlers_dict
 
 import ast
 import symtable
@@ -17,24 +17,28 @@ class SVisitor:
     """
     def __init__(self, root_namespace='root'):
         self.sgraph: SGraph = SGraph()
-        self.stack: Deque[SNode] = deque()
+        self.stack: Deque[Tuple[Dotstring, ast.AST]] = deque()
         self.root_namespace = root_namespace
 
     def scan_package(self, root_dir: Union[str, pathlib.Path]):
         root_path = pathlib.Path(root_dir).resolve()
         os.chdir(root_path)
-        logger.info(f'Scanning package at root location {root_path}, abs. path {root_path.resolve()}')
+        logger.info(f'Scanning package at root location {root_path}')
 
         # path relative to root_path
         def relpath(str_path):
             return pathlib.Path(str_path).resolve().relative_to(root_path)
 
+        root_hasinit = os.path.exists('__init__.py')
         root_snode = SNode(
             fullname=Dotstring(self.root_namespace),
             namespace=Dotstring(self.root_namespace),
             packagename=self.root_namespace,
             snodetype=SNodeType.Package,
             scope_dict={},
+            __imports_from__=[],
+            __code__=open('__init__.py') if root_hasinit else None,
+            __filepath__=pathlib.Path('__init__.py') if os.path.exists('__init__.py') else '.'
         )
         self.add_snodes(root_snode)
         # add __init__ file to module_list if it exists?
@@ -44,7 +48,7 @@ class SVisitor:
         stack.append((root_snode, root_path, ))
 
         # list of modules to analyze (and package = __init__)
-        module_list: List[SNode] = []
+        module_list: List[SNode] = [root_snode] if root_snode.attrs.get('__filepath__') != '.' else []
 
         while stack:
             package_snode, package_path = stack.pop()
@@ -58,6 +62,7 @@ class SVisitor:
                 if os.path.isfile(package_path/subpath) and subpath.endswith('.py') and subpath != '__init__.py':
                     # insert module node to graph and module_list
                     # propagate in scope_dict
+                    # add to package's __imports_from__
                     module_name = subpath[:-len('.py')]
 
                     module_snode = SNode(
@@ -79,8 +84,12 @@ class SVisitor:
                     module_list.append(module_snode)
                     new_dict[module_snode.fullname] = module_snode.fullname
 
+                    # if package_snode.attrs.get('__code__') is None:
+                    package_snode.attrs.get('__imports_from__').append(module_snode)
+                    self.add_sedges(SEdge((module_snode, package_snode, ), SEdgeType.ImportsFrom))
+
                 # add package if there are any .py files inside
-                elif os.path.isdir(package_path/subpath) and any([filename.endswith('py') for filename in os.listdir(package_path/subpath)]):
+                elif os.path.isdir(package_path/subpath) and any([filename.endswith('.py') for filename in os.listdir(package_path/subpath)]):
                     # add folder as package if it has any .py files
                     # then also add to stack
 
@@ -119,7 +128,26 @@ class SVisitor:
             self.second_pass(module_snode)
         logger.info('Second passes finished. Starting third pass.')
 
-    def first_pass(self, module_snode: SNode):
+        # get ordering of modules based on imports
+        try:
+            new_list = []
+
+            def rec(snode: SNode):
+                for imported_snode in snode.attrs.get('__imports_from__'):
+                    rec(imported_snode)
+                new_list.append(snode)
+
+            rec(root_snode)
+            module_list = new_list
+        except RecursionError:
+            raise RecursionError('Recursion limit reached - this is due to circular imports or exceedingly large number of files.')
+
+        for module_snode in module_list:
+            self.third_pass(module_snode)
+
+        logger.info('Finished successfully')
+
+    def first_pass(self, module_snode: SNode) -> None:
         logger.info(f'First pass for {module_snode.fullname}')
         code = module_snode.attrs.get('__code__')
         if code is None:
@@ -172,7 +200,7 @@ class SVisitor:
                 symbol_stack.append((child, child_snode,))
                 logger.debug(f'Added to stack {child_snode}')
 
-    def second_pass(self, module_snode: SNode):
+    def second_pass(self, module_snode: SNode) -> None:
         logger.info(f'Starting second pass for file {module_snode.fullname} (package: {module_snode.packagename})')
         code = module_snode.attrs.get('__code__')
         if code is None:
@@ -198,7 +226,7 @@ class SVisitor:
                     name_list.append(node.attr)
                     node = node.value
 
-                name_list.append(node.id)
+                name_list.append(node.id) if hasattr(node, 'id') else 1  # doesnt need to end with name !?
                 name_list = name_list[::-1]
                 top_snode = self.resolve_name(self.get_snode(top_namespace), name_list[0])
 
@@ -266,8 +294,9 @@ class SVisitor:
 
                     if imported_snode is not None:
                         logger.debug(f'Import detected in second pass: {module_snode} <- {imported_snode}')
-                        module_snode.attrs.get('__imports_from__').append(imported_snode)
-                        self.add_sedges(SEdge((module_snode, imported_snode,), SEdgeType.ImportsFrom))
+                        if imported_snode not in module_snode.attrs.get('__imports_from__'):
+                            module_snode.attrs.get('__imports_from__').append(imported_snode)
+                            self.add_sedges(SEdge((module_snode, imported_snode,), SEdgeType.ImportsFrom))
 
             else:
                 new_namespace = top_namespace
@@ -279,39 +308,17 @@ class SVisitor:
                 for child in ast.iter_child_nodes(top_node):
                     fp_stack.append((new_namespace, child))
 
+    def third_pass(self, module_snode: SNode) -> None:
+        logger.info(f'Starting third pass for file {module_snode.fullname} (package: {module_snode.packagename})')
+        tree = module_snode.attrs.get('__ast__')
 
-    def third_pass(self, module_snode: SNode):
-        pass
+        self.stack = deque()
 
-    # @deprecated
-    def single_file_third_pass(self, filepath: str) -> None:
-        """
-        name to be changed
-        not functional in this commit
-        """
-        logger.info(f'Analyzing file {filepath}...')
-        if not filepath.endswith('.py'):
-            raise ValueError('filepath should lead to .py file')
-
-        with open(filepath, 'r') as file:
-            code = file.read()
-        tree = ast.parse(code)
-
-        # add root (ast.Module) to stack with data
-        self.stack.append(
-            SNode(
-                fullname=Dotstring(self.root_namespace),
-                ast_node=tree,
-                parent=None,
-            )
-        )
-
-        # call handlers until stack is empty
         while self.stack:
-            top_node = self.stack.pop()
-            top_node_type = 'ast.' + type(top_node.ast_node).__name__
+            top_namespace, top_node = self.stack.pop()
+            top_node_type = 'ast.' + type(top_node).__name__
             handler = handlers_dict.get(top_node_type)
-            logger.info(f'Handling type {top_node_type} with {handler.__name__}')
+            logger.debug(f'Handling type {top_node_type} with {handler.__name__}')
             handler(self, top_node)
 
     def add_snodes(self, *nodes) -> None:
