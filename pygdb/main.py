@@ -13,10 +13,15 @@ if __name__ == '__main__':
     # sv.scan_package(root_dir=os.getcwd())
     # sv.sgraph.visualize(startpath / Path('../_'), 'png', view=True)
 
-    startpath = Path(os.getcwd())
-    sv = SVisitor(root_namespace='test_package')
-    os.chdir(startpath / Path('../test/test_package/'))
-    sv.scan_package(root_dir=os.getcwd())
-    sv.sgraph.visualize(startpath / Path('../_'), 'png', view=True)
+    # startpath = Path(os.getcwd())
+    # sv = SVisitor(root_namespace='test_package')
+    # os.chdir(startpath / Path('../test/test_package/'))
+    # sv.scan_package(root_dir=os.getcwd())
+    # sv.sgraph.visualize(startpath / Path('../_'), 'png', view=True)
 
+    startpath = Path(os.getcwd())
+    sv = SVisitor(root_namespace='numpy')
+    os.chdir(startpath / Path('../_numpy/numpy/'))
+    sv.scan_package(root_dir=os.getcwd())
+    #sv.sgraph.visualize(startpath / Path('../_'), 'png', view=True)
 

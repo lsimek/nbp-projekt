@@ -1,17 +1,37 @@
 digraph {
-	132191382189712 [label=Module fontname="Courier New"]
-	132191382424464 [label=Expr fontname="Courier New"]
-	132191382189712 -> 132191382424464
-	132191382424336 [label=Call fontname="Courier New"]
-	132191382424464 -> 132191382424336
-	132191382425040 [label="Attribute\nupdate" fontname="Courier New"]
-	132191382424336 -> 132191382425040
-	132191382424016 [label="Name\nhandlers_dict" fontname="Courier New"]
-	132191382425040 -> 132191382424016
-	132191382423888 [label=Dict fontname="Courier New"]
-	132191382424336 -> 132191382423888
-	132191382423632 [label="Name\nast_cls_wp" fontname="Courier New"]
-	132191382423888 -> 132191382423632
-	132191382422160 [label="Name\nhandler" fontname="Courier New"]
-	132191382423888 -> 132191382422160
+	138056291286992 [label=Module fontname="Courier New"]
+	138056291286928 [label=Assign fontname="Courier New"]
+	138056291286992 -> 138056291286928
+	138056291286864 [label="Name\nx" fontname="Courier New"]
+	138056291286928 -> 138056291286864
+	138056291286800 [label="Constant\n1" fontname="Courier New"]
+	138056291286928 -> 138056291286800
+	138056291286736 [label="ClassDef\nA" fontname="Courier New"]
+	138056291286992 -> 138056291286736
+	138056291286672 [label="FunctionDef\n__init__" fontname="Courier New"]
+	138056291286736 -> 138056291286672
+	138056291286608 [label=arguments fontname="Courier New"]
+	138056291286672 -> 138056291286608
+	138056291286544 [label="arg\nself" fontname="Courier New"]
+	138056291286608 -> 138056291286544
+	138056291286480 [label="arg\nx" fontname="Courier New"]
+	138056291286608 -> 138056291286480
+	138056291286416 [label="Constant\n5" fontname="Courier New"]
+	138056291286608 -> 138056291286416
+	138056291286352 [label=Assign fontname="Courier New"]
+	138056291286672 -> 138056291286352
+	138056291286288 [label="Attribute\nx" fontname="Courier New"]
+	138056291286352 -> 138056291286288
+	138056291286224 [label="Name\nself" fontname="Courier New"]
+	138056291286288 -> 138056291286224
+	138056291286096 [label="Name\nx" fontname="Courier New"]
+	138056291286352 -> 138056291286096
+	138056291076496 [label=Assign fontname="Courier New"]
+	138056291286992 -> 138056291076496
+	138056291285968 [label="Name\na" fontname="Courier New"]
+	138056291076496 -> 138056291285968
+	138056291285776 [label=Call fontname="Courier New"]
+	138056291076496 -> 138056291285776
+	138056291285712 [label="Name\nA" fontname="Courier New"]
+	138056291285776 -> 138056291285712
 }

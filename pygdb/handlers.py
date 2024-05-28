@@ -10,54 +10,18 @@ import builtins
 
 
 # define specific handlers here
-def default_handler(svisitor, top_node):
+def default_handler(svisitor, top_namespace, top_node):
     """
     add children to stack
     """
     for child in ast.iter_child_nodes(top_node.ast_node):
-        svisitor.stack.append(SContext(
-            ast_node=child,
-            parent=top_node,
-            namespace=top_node.namespace,
-        ))
-
-
-def module_handler(svisitor, top_node):
-    """
-    create new node of type module
-    add all elements of body to stack
-    """
-    module_name = svisitor.filepath.replace('/', '.')
-    # remove .py
-    module_name = module_name[:-len('.py')]
-    namespace_name = '.'.join(svisitor.namespace)
-
-    module_snode = SNode(
-        fullname=namespace_name + '.' + module_name,
-        filename=svisitor.filepath,
-        docstring=ast.get_docstring(top_node.ast_node),
-        code=None,  # ast.get_source_segment(svisitor.code, top_node.ast_node),
-        snodetype=SNodeType.Module,
-        pythontype='module',
-    )
-
-    svisitor.sgraph.augment_node(module_snode)
-    top_node.snode = module_snode
-
-    for body_node in top_node.ast_node.body:
-        svisitor.stack.append(SContext(
-            ast_node=body_node,
-            parent=top_node,
-            namespace=top_node.namespace + [module_name]
-        ))
+        svisitor.stack.append((top_namespace, child))
 
 
 def classdef_handler(svisitor, top_node):
     """
-    create new node of type class
     handle bases and decorators
     not implemented: handle metaclass
-    add WithinScope edge
     add all elements of list `body` to stack
     """
     namespace_name = '.'.join(top_node.namespace)
@@ -252,54 +216,55 @@ for ast_cls in dir(ast):
 
 
 # subhandlers, utilities used by various handlers
-def typing_subhandler(svisitor, top_node, returns_node):
-    """
-    analyze typing
-    """
-    if isinstance(returns_node, ast.Name) and returns_node.id in dir(builtins):
-        top_node.snode.other_attrs.update({'type': returns_node.id})
-        # top_node.pythontype = returns_node.id
-    # else it is some class (we don't analyze types given with more advanced typing)
-    elif isinstance(returns_node, ast.Attribute) or isinstance(returns_node, ast.Name):
-        type_fullname = top_node.snode.fullname + resolve_attrs(returns_node)
-        type_snode = SNode(
-            fullname=type_fullname,
-            snodetype=SNodeType.Class,
-            pythontype='class'
-        )
-        type_snode = svisitor.sgraph.augment_node(type_snode)
-        svisitor.sgraph.add_edges(SEdge(
-            nodes=(top_node.snode, type_snode),
-            sedgetype=SEdgeType.TypedWith
-        ))
+# def typing_subhandler(svisitor, top_node, returns_node):
+#     """
+#     analyze typing
+#     """
+#     if isinstance(returns_node, ast.Name) and returns_node.id in dir(builtins):
+#         top_node.snode.other_attrs.update({'type': returns_node.id})
+#         # top_node.pythontype = returns_node.id
+#     # else it is some class (we don't analyze types given with more advanced typing)
+#     elif isinstance(returns_node, ast.Attribute) or isinstance(returns_node, ast.Name):
+#         type_fullname = top_node.snode.fullname + resolve_attrs(returns_node)
+#         type_snode = SNode(
+#             fullname=type_fullname,
+#             snodetype=SNodeType.Class,
+#             pythontype='class'
+#         )
+#         type_snode = svisitor.sgraph.augment_node(type_snode)
+#         svisitor.sgraph.add_edges(SEdge(
+#             nodes=(top_node.snode, type_snode),
+#             sedgetype=SEdgeType.TypedWith
+#         ))
 
 
-def scope_subhandler(svisitor, top_node):
-    """
-    find scope
-    """
-    node = top_node
-    while node is not None:
-        if (
-            isinstance(node.ast_node, ast.Module) or
-            isinstance(node.ast_node, ast.FunctionDef) or
-            isinstance(node.ast_node, ast.AsyncFunctionDef) or
-            isinstance(node.ast_node, ast.ClassDef)
-        ) and node != top_node:
-            scope_snode = node.snode
-            svisitor.sgraph.add_edges(SEdge(
-                nodes=(top_node.snode, scope_snode),
-                sedgetype=SEdgeType.WithinScope
-            ))
-            break
-        node = node.parent
-    else:
-        logger.warning(f'Scope node could not be found for {top_node.snode.fullname}')
+# def scope_subhandler(svisitor, top_node):
+#     """
+#     find scope
+#     """
+#     node = top_node
+#     while node is not None:
+#         if (
+#             isinstance(node.ast_node, ast.Module) or
+#             isinstance(node.ast_node, ast.FunctionDef) or
+#             isinstance(node.ast_node, ast.AsyncFunctionDef) or
+#             isinstance(node.ast_node, ast.ClassDef)
+#         ) and node != top_node:
+#             scope_snode = node.snode
+#             svisitor.sgraph.add_edges(SEdge(
+#                 nodes=(top_node.snode, scope_snode),
+#                 sedgetype=SEdgeType.WithinScope
+#             ))
+#             break
+#         node = node.parent
+#     else:
+#         logger.warning(f'Scope node could not be found for {top_node.snode.fullname}')
 
 
-def add_body_subhandler(svisitor, top_node):
-    pass
+def add_body_subhandler(svisitor, top_namespace, top_node):
+    for child in top_node.body:
+        svisitor.stack.append(top_namespace, child)
 
 
-def add_children_subhandler(svisitor, top_node):
-    pass
+def add_children_subhandler(svisitor, top_namespace, top_node):
+    default_handler(svisitor, top_namespace, top_node)

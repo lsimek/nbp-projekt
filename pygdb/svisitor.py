@@ -8,6 +8,7 @@ import symtable
 from collections import deque
 from typing import List, Dict, Deque, Tuple, Union, Optional
 import os
+import sys
 import pathlib
 
 
@@ -37,7 +38,7 @@ class SVisitor:
             snodetype=SNodeType.Package,
             scope_dict={},
             __imports_from__=[],
-            __code__=open('__init__.py') if root_hasinit else None,
+            __code__=open('__init__.py').read() if root_hasinit else None,
             __filepath__=pathlib.Path('__init__.py') if os.path.exists('__init__.py') else '.'
         )
         self.add_snodes(root_snode)
@@ -86,7 +87,7 @@ class SVisitor:
 
                     # if package_snode.attrs.get('__code__') is None:
                     package_snode.attrs.get('__imports_from__').append(module_snode)
-                    self.add_sedges(SEdge((module_snode, package_snode, ), SEdgeType.ImportsFrom))
+                    self.add_sedges(SEdge((package_snode, module_snode, ), SEdgeType.ImportsFrom))
 
                 # add package if there are any .py files inside
                 elif os.path.isdir(package_path/subpath) and any([filename.endswith('.py') for filename in os.listdir(package_path/subpath)]):
@@ -103,7 +104,7 @@ class SVisitor:
                         snodetype=SNodeType.Package,
                         scope_dict={},
                         scope_parent=package_snode,
-                        hasinit=hasinit,
+                        __hasinit__=hasinit,
                         __imports_from__=[],
                         __code__=open(initpath).read() if hasinit else None,
                         __filepath__=relpath(initpath) if hasinit else None
@@ -113,8 +114,12 @@ class SVisitor:
                     self.add_snodes(new_package_snode)
                     self.add_sedges(SEdge((new_package_snode, package_snode, ), SEdgeType.WithinScope))
 
-                    module_list.append(new_package_snode)
+                    module_list.append(new_package_snode) if hasinit else 1
                     new_dict[new_package_snode.fullname] = new_package_snode.fullname
+
+                    # if package_snode.attrs.get('__code__') is None:
+                    package_snode.attrs.get('__imports_from__').append(new_package_snode)
+                    self.add_sedges(SEdge((package_snode, new_package_snode, ), SEdgeType.ImportsFrom))
 
                     stack.append((new_package_snode, package_path/subpath))
 
@@ -126,26 +131,46 @@ class SVisitor:
         logger.info('First passes finished. Starting second pass.')
         for module_snode in module_list:
             self.second_pass(module_snode)
-        logger.info('Second passes finished. Starting third pass.')
+        logger.info('Second passes finished. Setting up plan for third pass.')
 
+        sys.setrecursionlimit(50000)
         # get ordering of modules based on imports
-        try:
-            new_list = []
+        seen_set = set()
+        module_set = set()
 
-            def rec(snode: SNode):
-                for imported_snode in snode.attrs.get('__imports_from__'):
+        def rec(snode: SNode):
+            if snode in seen_set:
+                return
+            else:
+                seen_set.add(snode)
+
+            for imported_snode in snode.attrs.get('__imports_from__'):
+                if imported_snode.snodetype is SNodeType.Module or imported_snode.attrs.get('__hasinit__'):
                     rec(imported_snode)
-                new_list.append(snode)
 
-            rec(root_snode)
-            module_list = new_list
-        except RecursionError:
-            raise RecursionError('Recursion limit reached - this is due to circular imports or exceedingly large number of files.')
+            module_set.add(snode)
 
+        rec(root_snode)
+        # this is a way to add missing modules
+        # for module in module_list:
+        #     if module not in module_set:
+        #         module_set.add(module)
+
+        if len(module_list) != len(module_set):
+            # known to happen from: Python2 scripts, docstring-only modules
+            message = f'Not all modules in list for third pass ({len(module_list)} > {len(module_set)})\ndiff: {set(module_list) - module_set}.'
+            # raise Exception(message)
+            logger.critical(message)
+
+        module_list = list(set(module_set))
+
+        logger.info(f'Plan set ({len(module_list)} modules). Starting third pass.')
         for module_snode in module_list:
             self.third_pass(module_snode)
 
         logger.info('Finished successfully')
+        logger.info(f'Constructed graph with {len(self.sgraph.nodes)} nodes and {len(self.sgraph.edges)} edges.')
+        logger.get_stats()
 
     def first_pass(self, module_snode: SNode) -> None:
         logger.info(f'First pass for {module_snode.fullname}')
@@ -195,6 +220,9 @@ class SVisitor:
             # add children to stack if Function or Class
             for child in top_table.get_children():
                 child_fullname = top_snode.get_local(child.get_name())
+                if child_fullname is None:  # unknown error cause?
+                    logger.error(f'Child {child_fullname} in {module_snode.fullname} could not be resolved')
+                    continue
                 child_snode = self.get_snode(child_fullname)
                 child_snode.snodetype = SNodeType.Function if child.get_type() == 'function' else SNodeType.Class
                 symbol_stack.append((child, child_snode,))
@@ -228,6 +256,11 @@ class SVisitor:
 
                 name_list.append(node.id) if hasattr(node, 'id') else 1  # doesnt need to end with name !?
                 name_list = name_list[::-1]
+
+                if self.get_snode(top_namespace) is None:  # ?
+                    logger.error(f'{top_namespace} snode could not be found.')
+                    continue
+
                 top_snode = self.resolve_name(self.get_snode(top_namespace), name_list[0])
 
                 logger.debug(f'Attribute chain found: {name_list}')
@@ -239,7 +272,7 @@ class SVisitor:
                 if name_list[0] == 'self':
                     # special case - mark as attributes of respective class instead
                     top_snode = top_snode.scope_parent
-                    continue
+                    # continue
 
                 top_namespace = top_snode.namespace.concat(name_list[0])
 
@@ -284,6 +317,9 @@ class SVisitor:
                 names_list = [name.name for name in top_node.names] if isinstance(top_node, ast.Import) else [top_node.module]
 
                 for name in names_list:
+                    if name is None:  # ?
+                        logger.error(f'None node detected in module {module_snode.fullname}, {ast.dump(top_node)}')
+                        continue
                     if module_snode.snodetype is SNodeType.Module:
                         source_fullname = module_snode.scope_parent.fullname
                     else:
@@ -296,7 +332,7 @@ class SVisitor:
                         logger.debug(f'Import detected in second pass: {module_snode} <- {imported_snode}')
                         if imported_snode not in module_snode.attrs.get('__imports_from__'):
                             module_snode.attrs.get('__imports_from__').append(imported_snode)
-                            self.add_sedges(SEdge((module_snode, imported_snode,), SEdgeType.ImportsFrom))
+                            self.add_sedges(SEdge((imported_snode, module_snode, ), SEdgeType.ImportsFrom))
 
             else:
                 new_namespace = top_namespace
@@ -309,17 +345,19 @@ class SVisitor:
                     fp_stack.append((new_namespace, child))
 
     def third_pass(self, module_snode: SNode) -> None:
+        return
         logger.info(f'Starting third pass for file {module_snode.fullname} (package: {module_snode.packagename})')
-        tree = module_snode.attrs.get('__ast__')
+        tree = module_snode.attrs.get('__ast__')  # AST saved in second pass
 
         self.stack = deque()
+        self.stack.append((module_snode.fullname, tree))
 
         while self.stack:
             top_namespace, top_node = self.stack.pop()
             top_node_type = 'ast.' + type(top_node).__name__
             handler = handlers_dict.get(top_node_type)
             logger.debug(f'Handling type {top_node_type} with {handler.__name__}')
-            handler(self, top_node)
+            handler(self, top_namespace, top_node)
 
     def add_snodes(self, *nodes) -> None:
         self.sgraph.add_nodes(*nodes)
