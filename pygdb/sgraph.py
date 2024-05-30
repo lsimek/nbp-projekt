@@ -24,6 +24,7 @@ class SEdgeType(Enum):
     Decorates = 'DECORATES'
     WithinScope = 'WITHIN_SCOPE'
     TypedWith = 'TYPED_WITH'
+    InstanceOf = 'INSTANCE_OF'
     Returns = 'RETURNS'
 
 

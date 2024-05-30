@@ -37,6 +37,3 @@ class A:
         self.a = a
         self.b = b
         self.c = c
-
-
-        

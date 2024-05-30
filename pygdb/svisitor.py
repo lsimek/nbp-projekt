@@ -1,14 +1,15 @@
 from logging_settings import logger
 from sgraph import SEdgeType, SEdge, SGraph
 from snode import SNodeType, SNode, Dotstring
-from handlers import handlers_dict
 
 import ast
 import symtable
 from collections import deque
-from typing import List, Dict, Deque, Tuple, Union, Optional
+from typing import List, Dict, Deque, Tuple, Union, Set
 import os
 import sys
+import tracemalloc
+import time
 import pathlib
 
 
@@ -21,7 +22,10 @@ class SVisitor:
         self.stack: Deque[Tuple[Dotstring, ast.AST]] = deque()
         self.root_namespace = root_namespace
 
-    def scan_package(self, root_dir: Union[str, pathlib.Path]):
+    def scan_package(self, root_dir: Union[str, pathlib.Path]) -> None:
+        tracemalloc.start()
+        start_time = time.perf_counter()
+
         root_path = pathlib.Path(root_dir).resolve()
         os.chdir(root_path)
         logger.info(f'Scanning package at root location {root_path}')
@@ -49,7 +53,7 @@ class SVisitor:
         stack.append((root_snode, root_path, ))
 
         # list of modules to analyze (and package = __init__)
-        module_list: List[SNode] = [root_snode] if root_snode.attrs.get('__filepath__') != '.' else []
+        module_list: Union[List[SNode], Set[SNode]] = [root_snode] if root_snode.attrs.get('__filepath__') != '.' else []
 
         while stack:
             package_snode, package_path = stack.pop()
@@ -156,20 +160,23 @@ class SVisitor:
         #     if module not in module_set:
         #         module_set.add(module)
 
-        if len(module_list) != len(module_set):
+        if len(module_list := set(module_list)) != len(module_set):
             # known to happen from: Python2 scripts, docstring-only modules
-            message = f'Not all modules in list for third pass ({len(module_list)} > {len(module_set)})\ndiff: {set(module_list) - module_set}.'
+            diff = module_list - module_set if len(module_list) > len(module_set) else module_set - module_list
+            message = f'Not all modules in list for third pass ({len(module_list)} != {len(module_set)})\n{diff=}.'
             # raise Exception(message)
             logger.critical(message)
 
-        module_list = list(set(module_set))
+        # module_list = list(set(module_set))
 
         logger.info(f'Plan set ({len(module_list)} modules). Starting third pass.')
         for module_snode in module_list:
             self.third_pass(module_snode)
 
+        end_time = time.perf_counter()
         logger.info('Finished successfully')
         logger.info(f'Constructed graph with {len(self.sgraph.nodes)} nodes and {len(self.sgraph.edges)} edges.')
+        logger.info(f'Used {tracemalloc.get_traced_memory()[1] / 1024**2:.2f} MiB in {end_time - start_time:.2f} seconds.')
         logger.get_stats()
 
     def first_pass(self, module_snode: SNode) -> None:
@@ -271,8 +278,8 @@ class SVisitor:
 
                 if name_list[0] == 'self':
                     # special case - mark as attributes of respective class instead
-                    top_snode = top_snode.scope_parent
-                    # continue
+                    # top_snode = top_snode.scope_parent
+                    continue
 
                 top_namespace = top_snode.namespace.concat(name_list[0])
 
@@ -309,7 +316,7 @@ class SVisitor:
                     top_snode = new_snode
 
                 # add the list to AST node
-                top_node.list = name_list
+                top_node.name_list = name_list
 
             # import handling in second pass
             # what about a package wo __init__?
@@ -332,7 +339,7 @@ class SVisitor:
                         logger.debug(f'Import detected in second pass: {module_snode} <- {imported_snode}')
                         if imported_snode not in module_snode.attrs.get('__imports_from__'):
                             module_snode.attrs.get('__imports_from__').append(imported_snode)
-                            self.add_sedges(SEdge((imported_snode, module_snode, ), SEdgeType.ImportsFrom))
+                            self.add_sedges(SEdge((imported_snode, module_snode, ), SEdgeType.ImportsFrom, all=isinstance(top_node, ast.Import)))
 
             else:
                 new_namespace = top_namespace
@@ -345,19 +352,144 @@ class SVisitor:
                     fp_stack.append((new_namespace, child))
 
     def third_pass(self, module_snode: SNode) -> None:
-        return
+        """
+        main AST traversal
+        """
+
+        # define handlers and subhandlers
+        handlers_dict = {}
+
+        def default_handler():
+            """
+            add children to stack
+            """
+            for child in ast.iter_child_nodes(curr_node):
+                self.stack.append((top_snode, child, ))
+
+        def import_handler():
+            for statement in curr_node.names:
+                module_name, alias = statement.name, statement.asname
+                if alias is None:
+                    alias = module_name
+
+                if module_snode.snodetype is SNodeType.Module:
+                    source_fullname = module_snode.scope_parent.fullname
+                else:
+                    source_fullname = module_snode.fullname
+
+                imported_fullname = source_fullname.concat_rel(module_name)
+                imported_snode = self.get_snode(imported_fullname)
+
+                if imported_snode is None:
+                    logger.error(f'None node detected in module {top_snode.fullname} with {imported_fullname}')
+                    continue
+
+                # add to module's scope dict the imported scope dict, with adequate name changes
+                new_dict = {}
+                for local_fullname, true_fullname in imported_snode.scope_dict.items():
+                    local_snode = self.get_snode(local_fullname)
+                    # logger.critical('This is the local fullname:', top_snode.fullname.concat(local_fullname[len(local_snode.packagename):]))
+                    # new_dict[top_snode.fullname.concat(local_fullname[len(local_snode.packagename):])] = true_fullname
+                    new_dict[top_snode.fullname.concat(alias)] = true_fullname
+
+                top_snode.scope_dict.update(new_dict)
+        handlers_dict[ast.Import] = import_handler
+
+        def importfrom_handler():
+            module_name = curr_node.module
+            if module_name is None:
+                logger.error(f'None module in importfrom, {curr_node=}')
+                return
+
+            if module_snode.snodetype is SNodeType.Module:
+                source_fullname = module_snode.scope_parent.fullname
+            else:
+                source_fullname = module_snode.fullname
+
+            imported_fullname = source_fullname.concat_rel(module_name)
+            imported_snode = self.get_snode(imported_fullname)
+
+            if imported_snode is None:
+                logger.error(f'None node detected in module {top_snode.fullname} with {imported_fullname}')
+                return
+
+            # add to scope dict
+            new_dict = {}
+            for statement in curr_node.names:
+                source_name, alias = statement.name, statement.asname
+                if alias is None:
+                    alias = source_name
+
+                new_dict[top_snode.fullname.concat(alias)] = imported_snode.scope_dict.get(source_name)
+
+            top_snode.scope_dict.update(new_dict)
+        handlers_dict[ast.ImportFrom] = importfrom_handler
+
+        def classdef_handler():
+            class_snode = self.get_snode(top_snode.fullname.concat(curr_node.name))
+
+            for decorator in curr_node.decorator_list:
+                decorator_name = resolve_attrs_subhandler(decorator)
+                decorator_snode = self.resolve_name(top_snode, decorator_name)
+                if decorator_snode is not None:
+                    self.add_sedges(SEdge((decorator_snode, class_snode, ), SEdgeType.Decorates))
+
+            for base in curr_node.bases:
+                base_name = resolve_attrs_subhandler(base)
+                base_snode = self.resolve_name(top_snode, base_name)
+                if base_snode is not None:
+                    self.add_sedges(SEdge((class_snode, base_snode, ), SEdgeType.InheritsFrom))
+
+            add_body_subhandler(class_snode)
+        handlers_dict[ast.ClassDef] = classdef_handler
+
+        def functiondef_handler():
+            func_snode = self.get_snode(top_snode.fullname.concat(curr_node.name))
+
+            for decorator in curr_node.decorator_list:
+                decorator_name = resolve_attrs_subhandler(decorator)
+                decorator_snode = self.resolve_name(top_snode, decorator_name)
+                if decorator_snode is not None:
+                    self.add_sedges(SEdge((decorator_snode, func_snode, ), SEdgeType.Decorates))
+
+            # handle args
+
+            add_body_subhandler(func_snode)
+        handlers_dict[ast.FunctionDef] = functiondef_handler
+        handlers_dict[ast.AsyncFunctionDef] = functiondef_handler
+
+        # subhandlers
+        def add_body_subhandler(new_snode) -> None:
+            for child in curr_node.body:
+                self.stack.append((new_snode, child, ))
+
+        add_children_subhandler = default_handler
+
+        def resolve_attrs_subhandler(top_node) -> Dotstring:
+            name_list = []
+            node = top_node
+
+            while isinstance(node, ast.Attribute):
+                name_list.append(node.attr)
+                node = node.value
+
+            name_list.append(node.id) if hasattr(node, 'id') else 1  # doesnt need to end with name !?
+            name_list = name_list[::-1]
+
+            return Dotstring.from_list(name_list)
+        # end
+
+        # traversal
         logger.info(f'Starting third pass for file {module_snode.fullname} (package: {module_snode.packagename})')
         tree = module_snode.attrs.get('__ast__')  # AST saved in second pass
-
         self.stack = deque()
-        self.stack.append((module_snode.fullname, tree))
+        self.stack.append((module_snode, tree, ))
 
         while self.stack:
-            top_namespace, top_node = self.stack.pop()
-            top_node_type = 'ast.' + type(top_node).__name__
-            handler = handlers_dict.get(top_node_type)
-            logger.debug(f'Handling type {top_node_type} with {handler.__name__}')
-            handler(self, top_namespace, top_node)
+            top_snode, curr_node = self.stack.pop()
+            handler = handlers_dict.get(curr_node.__class__, default_handler)
+            logger.debug(f'Handling node of type {curr_node.__class__} with {handler.__name__}')
+            handler()
 
     def add_snodes(self, *nodes) -> None:
         self.sgraph.add_nodes(*nodes)

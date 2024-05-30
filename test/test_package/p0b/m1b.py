@@ -3,5 +3,6 @@ z = 6
 class BlueClass:
     pass
 
-class GreenClass:
+@BlueClass
+class GreenClass(BlueClass):
     pass

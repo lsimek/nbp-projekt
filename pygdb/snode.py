@@ -81,8 +81,6 @@ class SNode:
             snodetype: SNodeType = SNodeType.Name,
             scope_dict: Dict[Dotstring, Dotstring] = None,
             scope_parent=None,
-            ast_parent=None,
-            ast_node: Optional[ast.AST] = None,
             **attrs
     ):
         self.fullname = fullname
@@ -97,12 +95,6 @@ class SNode:
         
         # parent in context of scope
         self.scope_parent = scope_parent
-        
-        # parent in context of AST
-        self.ast_parent = ast_parent
-        
-        # related AST node if any
-        self.ast_node = ast_node
 
         # dictionary of other attributes
         self.attrs = attrs
