@@ -41,6 +41,7 @@ class SVisitor:
             packagename=self.root_namespace,
             snodetype=SNodeType.Package,
             scope_dict={},
+            __hasinit__=root_hasinit,
             __imports_from__=[],
             __code__=open('__init__.py').read() if root_hasinit else None,
             __filepath__=pathlib.Path('__init__.py') if os.path.exists('__init__.py') else '.'
@@ -140,11 +141,13 @@ class SVisitor:
         sys.setrecursionlimit(50000)
         # get ordering of modules based on imports
         seen_set = set()
-        module_set = set()
+        new_module_list = []
 
         def rec(snode: SNode):
             if snode in seen_set:
                 return
+            # elif snode.snodetype is SNodeType.Module or snode.attrs.get('__hasinit__'):
+            #     seen_set.add(snode)
             else:
                 seen_set.add(snode)
 
@@ -152,7 +155,9 @@ class SVisitor:
                 if imported_snode.snodetype is SNodeType.Module or imported_snode.attrs.get('__hasinit__'):
                     rec(imported_snode)
 
-            module_set.add(snode)
+            if snode.snodetype is SNodeType.Module or snode.attrs.get('__hasinit__') and snode not in new_module_list:
+                # module_set.add(snode)
+                new_module_list.append(snode)
 
         rec(root_snode)
         # this is a way to add missing modules
@@ -160,13 +165,21 @@ class SVisitor:
         #     if module not in module_set:
         #         module_set.add(module)
 
-        if len(module_list := set(module_list)) != len(module_set):
-            # known to happen from: Python2 scripts, docstring-only modules
-            diff = module_list - module_set if len(module_list) > len(module_set) else module_set - module_list
-            message = f'Not all modules in list for third pass ({len(module_list)} != {len(module_set)})\n{diff=}.'
+        # if len(module_list := set(module_list)) != len(module_set):
+        #     # known to happen from: Python2 scripts, docstring-only modules
+        #     diff = module_list - module_set if len(module_list) > len(module_set) else module_set - module_list
+        #     message = f'Not all modules in list for third pass ({len(module_list)} != {len(module_set)})\n{diff=}.'
+        #     # raise Exception(message)
+        #     logger.critical(message)
+
+        if len(module_list) != len(new_module_list):
+        # known to happen from: Python2 scripts, docstring-only modules
+            diff = set(module_list) - set(new_module_list) if len(module_list) > len(new_module_list) else set(new_module_list) - set(module_list)
+            message = f'Not all modules in list for third pass ({len(module_list)} != {len(new_module_list)})\n{diff=}.'
             # raise Exception(message)
             logger.critical(message)
 
+        module_list = new_module_list
         # module_list = list(set(module_set))
 
         logger.info(f'Plan set ({len(module_list)} modules). Starting third pass.')
@@ -261,7 +274,12 @@ class SVisitor:
                     name_list.append(node.attr)
                     node = node.value
 
-                name_list.append(node.id) if hasattr(node, 'id') else 1  # doesnt need to end with name !?
+                # name_list.append(node.id) if hasattr(node, 'id') else 1  # doesnt need to end with name !?
+                if hasattr(node, 'id'):
+                    name_list.append(node.id)
+                else:
+                    continue
+
                 name_list = name_list[::-1]
 
                 if self.get_snode(top_namespace) is None:  # ?
@@ -316,7 +334,8 @@ class SVisitor:
                     top_snode = new_snode
 
                 # add the list to AST node
-                top_node.name_list = name_list
+                # top_node.name_list = name_list
+                top_node.name_dotstring = Dotstring.from_list(name_list)
 
             # import handling in second pass
             # what about a package wo __init__?
@@ -387,11 +406,17 @@ class SVisitor:
                 # add to module's scope dict the imported scope dict, with adequate name changes
                 new_dict = {}
                 for local_fullname, true_fullname in imported_snode.scope_dict.items():
-                    local_snode = self.get_snode(local_fullname)
+                    # local_snode = self.get_snode(local_fullname)
+                    local_snode = self.get_snode(true_fullname)
+                    if local_snode is None:
+                        logger.warning(f'{local_snode} could not be imported')
+                        continue
+
                     # logger.critical('This is the local fullname:', top_snode.fullname.concat(local_fullname[len(local_snode.packagename):]))
                     # new_dict[top_snode.fullname.concat(local_fullname[len(local_snode.packagename):])] = true_fullname
-                    new_dict[top_snode.fullname.concat(alias)] = true_fullname
+                    new_dict[top_snode.fullname.concat(alias).concat(local_snode.name)] = true_fullname
 
+                logger.debug(f'Adding {new_dict=} to snode {top_snode.fullname=}')
                 top_snode.scope_dict.update(new_dict)
         handlers_dict[ast.Import] = import_handler
 
@@ -419,9 +444,29 @@ class SVisitor:
                 source_name, alias = statement.name, statement.asname
                 if alias is None:
                     alias = source_name
+                # logger.debug(f'{source_name=}, {imported_snode=}, {imported_snode.scope_dict=}')
+                # logger.debug(f'{imported_snode.scope_dict}')
+                if source_name == '*':
+                    # implementation for
+                    # from ... import *
+                    for local_fullname, true_fullname in imported_snode.scope_dict.items():
+                        # local_snode = self.get_snode(local_fullname)
+                        local_snode = self.get_snode(true_fullname)
+                        if local_snode is None:
+                            logger.warning(f'{local_snode} could not be imported')
+                            continue
 
-                new_dict[top_snode.fullname.concat(alias)] = imported_snode.scope_dict.get(source_name)
-
+                        # logger.critical('This is the local fullname:', top_snode.fullname.concat(local_fullname[len(local_snode.packagename):]))
+                        # new_dict[top_snode.fullname.concat(local_fullname[len(local_snode.packagename):])] = true_fullname
+                        new_dict[top_snode.fullname.concat(local_snode.name)] = true_fullname
+                else:
+                    true_fullname = imported_snode.scope_dict.get(imported_snode.fullname.concat(source_name))
+                    if true_fullname is None:
+                        logger.warning(f'{imported_snode.fullname.concat(source_name)} could not be found in scope of {imported_snode}')
+                        continue
+                    new_dict[top_snode.fullname.concat(alias)] = true_fullname
+                    self.add_sedges(SEdge((self.get_snode(true_fullname), top_snode, ), SEdgeType.ImportedTo))
+            # logger.debug(f'Adding to {top_snode} the {new_dict=}')
             top_snode.scope_dict.update(new_dict)
         handlers_dict[ast.ImportFrom] = importfrom_handler
 
@@ -465,7 +510,12 @@ class SVisitor:
 
         add_children_subhandler = default_handler
 
-        def resolve_attrs_subhandler(top_node) -> Dotstring:
+        def resolve_attrs_subhandler(top_node) -> Dotstring | None:
+            if hasattr(curr_node, 'name_dostring'):
+                # already analyzed
+                return curr_node.name_dotstring
+            # handle attribute case
+
             name_list = []
             node = top_node
 
@@ -473,22 +523,97 @@ class SVisitor:
                 name_list.append(node.attr)
                 node = node.value
 
-            name_list.append(node.id) if hasattr(node, 'id') else 1  # doesnt need to end with name !?
+            if hasattr(node, 'id'):
+                name_list.append(node.id)
+            else:
+                return None
+
             name_list = name_list[::-1]
 
+            # if self.get_snode(top_snode.fullname) is None:  # ?
+            #     logger.error(f'{top_snode.fullname} snode could not be found.')
+            #     return None
+
+            referenced_snode = self.resolve_name(top_snode, name_list[0])
+
+            logger.debug(f'Attribute chain found: {name_list}')
+
+            if referenced_snode is None:
+                # imported name
+                return None
+
+            if name_list[0] == 'self':
+                # special case
+                # top_snode = top_snode.scope_parent
+                return None
+
+            # top_namespace = top_snode.namespace.concat(name_list[0])
+            # for imported names, add new attributes defined outside
+            for name in name_list[1:]:
+                # check if already exists
+                new_fullname = referenced_snode.fullname.concat(name)
+                new_snode = self.get_snode(new_fullname)
+
+                # make new snode
+                if new_snode is None:
+                    new_snode = SNode(
+                        fullname=referenced_snode.fullname.concat(name),
+                        name=referenced_snode.name.concat(name),
+                        namespace=referenced_snode.fullname,
+                        modulename=module_snode.name,
+                        packagename=module_snode.packagename,
+                        snodetype=SNodeType.Name,
+                        scope_dict={},
+                        scope_parent=referenced_snode,
+                    )
+
+                    # add to graph
+                    self.add_snodes(new_snode)
+
+                    # connect with 'AttributeOf' SEdge
+                    new_sedge = SEdge((new_snode, top_snode), SEdgeType.AttributeOf)
+                    self.add_sedges(new_sedge)
+
+                    # propagate in scope
+                    # self.propagate_scope(top_snode, {new_snode.fullname: new_snode.fullname})
+
+                # set future top_node and top_namespace
+                referenced_snode = new_snode
+
             return Dotstring.from_list(name_list)
+
+        def get_all_names_subhandler(top_node) -> List[SNode]:
+            """
+            within a subtree, get all
+            mentioned names as snodes
+            """
+            li: List[SNode] = []
+
+            substack = deque()
+            substack.append(top_node)
+
+            while substack:
+                subcurr_node = substack.pop()
+                for child in ast.iter_child_nodes(subcurr_node):
+                    if isinstance(child, (ast.Attribute, ast.Name)):
+                        new_ds = resolve_attrs_subhandler(subcurr_node)
+                        if new_ds is not None:
+                            li.append(self.get_snode(new_ds))
+                    else:
+                        substack.append(child)
+
+            return li
         # end
 
-        # traversal
+        # AST traversal
         logger.info(f'Starting third pass for file {module_snode.fullname} (package: {module_snode.packagename})')
         tree = module_snode.attrs.get('__ast__')  # AST saved in second pass
         self.stack = deque()
         self.stack.append((module_snode, tree, ))
 
         while self.stack:
-            top_snode, curr_node = self.stack.pop()
+            top_snode, curr_node = self.stack.popleft()
             handler = handlers_dict.get(curr_node.__class__, default_handler)
-            logger.debug(f'Handling node of type {curr_node.__class__} with {handler.__name__}')
             handler()
 
     def add_snodes(self, *nodes) -> None:
@@ -509,7 +634,6 @@ class SVisitor:
         for given scope and name, get unique
         SNode it refers to
         """
-        logger.debug(f'Resolving {name=} in {current_snode}')
         fullname = current_snode.fullname.concat(name)
         while fullname not in current_snode.scope_dict and current_snode.scope_parent is not None:
             current_snode = current_snode.scope_parent
