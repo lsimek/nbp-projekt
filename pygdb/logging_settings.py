@@ -74,4 +74,3 @@ def get_stats():
 logger.get_stats = get_stats
 
 logger.setLevel(logging.DEBUG)
-
