@@ -119,4 +119,7 @@ dependencies:
   - zipp=3.17.0=pyhd8ed1ab_0
   - zlib=1.2.13=hd590300_5
   - zstd=1.5.6=ha6fb4c9_0
+  - pip:
+      - neo4j==5.20.0
+      - pytz==2024.1
 prefix: /home/lsimek/miniconda3/envs/nbp-proj-env
