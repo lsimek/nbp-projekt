@@ -1,0 +1,93 @@
+\section{Konstrukcija grafa}
+Apstraktno sintaksno stablo je i samo graf, ali se značajno razlikuje od grafa
+kakvog smo opisali u~\ref{sec:uvod}. Primijetimo, još jednom, da
+slijed vrhova i bridova u AST-u odgovara slijedu samog koda. Imena i atributi
+definirani u njemu su smisleni Pythonovom interpreteru prilikom
+dinamičkog izvođenja programa, ali da bismo sami mogli raspoznati imena,
+njihove uloge i prodrijeti kroz ljudskom oku ponekad konvoluiranu strukturu AST-a,
+potreban je dodatni rad. Zbog toga želimo AST transformirati u 
+prikladniji oblik grafa, koji ćemo kasnije prenijeti u grafovsku bazu podataka, a
+koja će omogućiti vizualizaciju grafa i izvršavanje upita.
+
+Napomenimo da je izbor konkretne realizacije tog grafa, za koji smo dosad
+dali samo inspiraciju, subjektivan. Implicitna shema grafa dana je u~\ref{subsec:implicitna}, 
+no u ovom projektu uvijek nastojimo omogućiti jednostavno stvaranje varijanti na glavnu
+izvedbu. Doista, za što je moguće temeljitije izvlačenje informacija
+iz koda, potrebno je obratiti pažnju na veliki broj specijalnih slučajeva.
+Specijalnih slučajeva ne samo da je puno, zbog čega će vjerojatno
+uvijek biti novih ideja ili mišljenja, već njihovim uvođenjem
+povećavamo kod i kompliciramo njegovu strukturu. Zato se u ovom
+trenutku fokusiramo na osnovne funkcionalnosti sa što
+elegantnijom strukturom.
+
+Spomenutu transformaciju obavljamo u Pythonu, ali primijetimo
+da je neke ideje moguće izvesti i unutar same baze. Kad je to moguće,
+dobro je tako napraviti zbog boljih performansi i deklarativnog koda.
+
+\subsection{Obrada jednog modula}
+Započnimo s problemom analize jednog modula\footnote{u ovom kontekstu,
+izraz \emph{modul} poistovjećujemo s \texttt{.py} datotekom},
+ odnosno preslikavanja njegovog koda u graf kakav želimo. U tom problemu imamo
+dva glavna cilja:
+\begin{itemize}
+\item \textit{Obilazak AST-a i izvlačenje informacija o imenima.} Prilikom obilaska AST-a, želimo trenutnom vrhu
+dodati atribute (npr.\ tip ako je dan) i povući odgovarajuće bridove s nekim drugim vrhovima u grafu. U
+preorder obilasku stabla, obilazimo sintaktičke elemente onim redom kojim su navedeni u kodu. Osim toga,
+posebice za povlačenje bridova, potrebno nam je nekakvo praćenje konteksta, budući da u čistom
+obilasku u svakom trenutku vidimo samo jedan vrh. U našoj implementaciji koristimo se strukturom
+\texttt{SNode} koja osim podataka koje prenosimo u bazu, sprema i neke podatke važne za kontekst.
+Pri obilasku koristimo razne \texttt{handler}-e, svaki od kojih je povezan sa specifičnom
+vrstom ili vrstama vrha u AST-u. Na taj način enkapsuliramo željene funkcionalnosti unutar
+jedne funkcije i dozvoljavamo fleksibilnost po pitanju njihovog izbora. Moguće je pri
+obradi jednog vrha dodati njegovu djecu na stog za kasniju obradu, ali ih i ignorirati ili
+obratiti odmah ako je to moguče ili prikladno.
+
+\item \textit{Rezolucija imena.} Programski kod sastoji se od raznih imena, a njihovo značenje ovisi ne samo
+o dinamičnom pridruživanju već i o nazivnom prostoru u kojemu se nalaze. Ključno je razlikovati dva
+imena koja se nalaze u različitim prostorima (npr.\ svaka od dvije funkcije može imati vlastitu lokalnu
+varijablu \texttt{x}), ali i prepoznati dva imena kao ista (posebice prilikom uvoza).
+\end{itemize}
+
+Ta dva cilja ispunjavamo pomoću tri obilaska:
+\begin{enumerate}
+\item \textit{Prvi obilazak.} U prvom obilasku prolazimo kroz tablicu simbola.
+	Za svaki novi lokalni simbol dodajemo novi \texttt{SNode} i postavljamo
+	kontekstualne veze --- roditelja i rječnik s vlastitom djecom kad simbol
+	ima vlastiti nazivni prostor.
+\item \textit{Drugi obilazak.} U drugom prolasku obilazimo AST i sve atribute dosad viđenih
+	simbola dodajemo kao nove simbole.
+\item \textit{Treći prolazak.} U trećem prolasku ponovo obilazimo AST. Fokusiramo se na ranije spomenute
+	funkcionalnosti važne kod obilaska i uglavnom stvaramo bridove.
+\end{enumerate}
+
+
+\subsection{Proširenje na cijeli paket}
+Da bismo analizirali cijeli paket\footnote{u ovom kontekstu, paket poistovjećujemo s
+mapom (folderom); u prošlosti je mapa
+morala imati \texttt{__init__.py} file da se smatra paketom, no u novijim verzijama
+($\ge$3.3) nije obavezan}
+koji se sastoji od većeg broja modula i potpaketa, potrebno je doraditi dosadašnji algoritam:
+\begin{itemize}
+\item Najprije je potreban još jedan "nulti" obilazak, ovaj put fileova u repozitoriju, kojim
+nalazimo sve module i pakete (\texttt{__init__.py} može definirati uvoz i varijable na razini paketa)
+koje moramo analizirati. I ovdje je bitno uspostaviti kontekstualne veze između paketa i modula.
+
+\item Izvršavamo prvi obilazak svakog od modula\footnote{ovdje mislimo i na module i na pakete s
+\texttt{__init__.py}-jem}
+u proizvoljnom poretku.
+
+\item U drugim obilascima, koje opet izvršavamo u proizvoljnom poretka, osim atributa analiziramo i
+uvoz (\emph{import}) dodajući u graf relevantne bridove.
+Ovo je bitno da bismo u trećem prolasku mogli uvezena imena ispravno povezati s vrhovima. Naime,
+ako modul \texttt{X} uvozi iz \texttt{Y}, a \texttt{Y} iz \texttt{Z}, tada će prvo biti potrebno
+uvesti simbole iz \texttt{Z} u \texttt{Y}, budući da \texttt{X} tranzitivno
+uvozi i iz \texttt{Z}.
+
+\item Treći obilazak izvršavamo kao ranije, ali u specifičnom poretku. Konkretno, nikad
+ne počinjemo treći obilazak modula prije nego obiđemo one module iz kojih prvi uvozi.
+To je moguće pod pretpostavkom da nema cirkularnosti u uvozu, što, iako nije
+samo po sebi zabranjeno, može dovesti do nepredividivog ponašanja.
+
+\end{itemize}
+
+
