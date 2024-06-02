@@ -4,20 +4,21 @@ from svisitor import SVisitor
 from logging_settings import logger
 
 import os
+import logging
 from pathlib import Path
 import argparse
 
 
 class Connector:
     """
-    connector to interface with neo4j
+    interface with neo4j
     requires neo4j, user with password & database named {db_name}
     """
-    uri = 'bolt://localhost:7689'
+    db_name = 'pygdb'
+    uri = f'bolt://localhost:7689/'
     # set user password with
     # alter user neo4j set password 'password';
     auth = ('neo4j', 'password')
-    db_name = 'pygdb'
 
     def __init__(self, uri=None, auth=None, db_name=None):
         self.driver = GraphDatabase.driver(
@@ -27,19 +28,45 @@ class Connector:
 
         self.db_name = db_name or self.db_name
         self.driver.verify_connectivity()
+        self.session = self.driver.session(database=self.db_name)
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+        self.session.close()
+        self.driver.close()
+
+    @staticmethod
+    def create_node_transaction(tx, snode):
+        snodetype = snode.snodetype.value
+        tx.run(
+            f'''
+            CREATE (:{snodetype} $snode_attrs)
+            ''',
+            snode_attrs=vars(snode)
+        )
+
+    @staticmethod
+    def create_edge_transction(tx, sedge):
+        sedgetype= sedge.sedgetype.value
+        tx.run(
+            f'''
+            MATCH (f {{fullname: $first_fullname}}), (s {{fullname: $second_fullname}})
+            CREATE (f)-[:{sedgetype} $sedge_attrs]->(s)
+            ''',
+            first_fullname=sedge.nodes[0].fullname,
+            second_fullname=sedge.nodes[1].fullname,
+            sedge_type=sedge.sedgetype.value,
+            sedge_attrs=vars(sedge)
+        )
 
 
 def clear(args):
-    db_name = args.conn.db_name
+    db_name = connector.db_name
     exists = False
     # check existence
-    records, _, _ = args.conn.driver.execute_query('SHOW DATABASES YIELD name')
+    records, _, _ = connector.driver.execute_query('SHOW DATABASES YIELD name')
     for record in records:
         if record.data().get('name') == db_name:
             exists = True
@@ -51,13 +78,35 @@ def clear(args):
                 return
 
     if exists:
-        args.conn.driver.execute_query(f'DROP DATABASE {db_name}', database_=db_name)
-    args.conn.driver.execute_query(f'CREATE DATABASE {db_name}')
+        connector.driver.execute_query(f'DROP DATABASE {db_name}')
+    connector.driver.execute_query(f'CREATE DATABASE {db_name}')
     print(f'Database {db_name} {'reset' if exists else 'created'} successfully.')
 
 
 def add(args):
-    pass
+    logging_dict = {
+        0: logging.CRITICAL,
+        1: logging.ERROR,
+        2: logging.WARNING,
+        3: logging.INFO,
+        4: logging.DEBUG,
+    }
+    logger.setLevel(logging_dict.get(args.logging_level))
+
+    os.chdir(args.uri)
+    sv = SVisitor(root_namespace=args.name)
+    sv.scan_package(root_dir=os.getcwd())
+
+    logger.info('Starting transactions.')
+    for snode in sv.sgraph.nodes.values():
+        connector.session.execute_write(Connector.create_node_transaction, snode)
+
+    logger.info('Nodes done.')
+    for sedge in sv.sgraph.edges:
+        connector.session.execute_write(Connector.create_edge_transction, sedge)
+
+    logger.info('Edges done.')
+    logger.info('Transactions complete.')
 
 
 def query(args):
@@ -79,13 +128,21 @@ if __name__ == '__main__':
         type=str,
         default=Connector.auth,
         nargs=2,
+        required=False,
         help='username and password for Neo4j server, e.g. "neo4j" "password"'
+    )
+
+    parser.add_argument(
+        '-d', '--database',
+        type=str,
+        default=Connector.db_name,
+        help='name of database'
     )
 
     subparsers = parser.add_subparsers()
 
     # subcommands are clear, add, query
-    clear_parser = subparsers.add_parser('clear', aliases=['c', 'create'], help='reset contents of the database or create database')
+    clear_parser = subparsers.add_parser('clear', aliases=['c', 'create', 'r', 'reset'], help='reset contents of the database or create database')
 
     add_parser = subparsers.add_parser('add', aliases=['a'], help='add new package to database')
     add_parser.add_argument(
@@ -96,7 +153,14 @@ if __name__ == '__main__':
     )
 
     add_parser.add_argument(
-        '-l', '-logging-level',
+        '-n', '--name',
+        type=str,
+        default='root',
+        help='name and root namespace of package'
+    )
+
+    add_parser.add_argument(
+        '-l', '--logging-level',
         type=int,
         choices=range(5),
         default=3,
@@ -122,6 +186,7 @@ if __name__ == '__main__':
     clear_parser.set_defaults(func=clear)
 
     args = parser.parse_args()
-    args.conn = Connector(args.server, args.auth)
-    print('Connection to server successful.')
-    args.func(args)
+
+    with Connector(args.server, args.auth, args.database) as connector:
+        print('Connection to server successful.')
+        args.func(args)

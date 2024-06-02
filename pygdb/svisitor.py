@@ -147,17 +147,14 @@ class SVisitor:
         def rec(snode: SNode):
             if snode in seen_set:
                 return
-            # elif snode.snodetype is SNodeType.Module or snode.attrs.get('__hasinit__'):
-            #     seen_set.add(snode)
             else:
                 seen_set.add(snode)
 
             for imported_snode in snode.attrs.get('__imports_from__'):
-                if imported_snode.snodetype is SNodeType.Module or imported_snode.attrs.get('__hasinit__'):
-                    rec(imported_snode)
+                # if imported_snode.snodetype is SNodeType.Module or imported_snode.attrs.get('__hasinit__'):
+                rec(imported_snode)
 
             if snode.snodetype is SNodeType.Module or snode.attrs.get('__hasinit__') and snode not in new_module_list:
-                # module_set.add(snode)
                 new_module_list.append(snode)
 
         rec(root_snode)
@@ -351,7 +348,7 @@ class SVisitor:
                         logger.debug(f'Import detected in second pass: {module_snode} <- {imported_snode}')
                         if imported_snode not in module_snode.attrs.get('__imports_from__'):
                             module_snode.attrs.get('__imports_from__').append(imported_snode)
-                            self.add_sedges(SEdge((imported_snode, module_snode, ), SEdgeType.ImportsFrom, all=isinstance(top_node, ast.Import)))
+                            self.add_sedges(SEdge((imported_snode, module_snode, ), SEdgeType.ImportsFrom))
 
             else:
                 new_namespace = top_namespace
@@ -407,6 +404,7 @@ class SVisitor:
 
                     new_dict[top_snode.fullname.concat(alias).concat(local_snode.name)] = true_fullname
 
+                self.add_sedges(SEdge((imported_snode, top_snode), SEdgeType.ImportedTo, alias=alias))
                 top_snode.scope_dict.update(new_dict)
         handlers_dict[ast.Import] = import_handler
 
@@ -451,7 +449,7 @@ class SVisitor:
                         logger.warning(f'{imported_snode.fullname.concat(source_name)} could not be found in scope of {imported_snode}')
                         continue
                     new_dict[top_snode.fullname.concat(alias)] = true_fullname
-                    self.add_sedges(SEdge((self.get_snode(true_fullname), top_snode, ), SEdgeType.ImportedTo))
+                    self.add_sedges(SEdge((self.get_snode(true_fullname), top_snode, ), SEdgeType.ImportedTo, alias=alias))
             top_snode.scope_dict.update(new_dict)
         handlers_dict[ast.ImportFrom] = importfrom_handler
 
@@ -479,7 +477,7 @@ class SVisitor:
             func_snode.add_to_attrs(docstring=ast.get_docstring(curr_node))
 
             if isinstance(curr_node, ast.AsyncFunctionDef):
-                func_snode.add_to_attrs(is_async=True)
+                func_snode.add_to_attrs(isAsync=True)
 
             for decorator in curr_node.decorator_list:
                 decorator_name = resolve_attrs_subhandler(decorator)

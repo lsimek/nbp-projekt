@@ -8,16 +8,15 @@ from logging_settings import logger
 from snode import SNode, Dotstring, SNodeType
 
 from enum import Enum
-from typing import Tuple, List, Dict
+from typing import Tuple, Set, Dict
 
 
 class SEdgeType(Enum):
-    Refers = 'REFERS'
     InheritsFrom = 'INHERITS_FROM'
     Argument = 'ARGUMENT'
-    AsArgument = 'AS_ARGUMENT'
-    CalledWith = 'CALLED_WITH'
-    AttributeOf = 'ATTRIBUTE_OF'
+    AsArgument = 'AS_ARGUMENT'  #
+    CalledWith = 'CALLED_WITH'  #
+    AttributeOf = 'ATTRIBUTE'
     ImportsFrom = 'IMPORTS_FROM'
     ImportedTo = 'IMPORTED_TO'
     Method = 'METHOD'
@@ -26,21 +25,38 @@ class SEdgeType(Enum):
     WithinScope = 'WITHIN_SCOPE'
     TypedWith = 'TYPED_WITH'
     Returns = 'RETURNS'
-    InstanceOf = 'INSTANCE_OF'
+    InstanceOf = 'INSTANCE_OF'  #
     AssignedToWithin = 'ASSIGNED_TO_WITHIN'
     ReferencedWithin = 'REFERENCED_WITHIN'
+
+    def __hash__(self):
+        return hash(self.value)
 
 
 class SEdge:
     def __init__(
             self,
             nodes: Tuple[SNode, SNode],
-            sedgetype: SEdgeType = SEdgeType.Refers,
+            sedgetype: SEdgeType,
             **attrs
     ):
         self.sedgetype = sedgetype
         self.nodes = nodes
         self.attrs = attrs
+
+    def __hash__(self):
+        return hash((self.nodes[0], self.nodes[1], self.sedgetype))
+
+    def __eq__(self, other):
+        return (
+            self.nodes[0].fullname == other.nodes[0].fullname and
+            self.nodes[1].fullname == other.nodes[1].fullname and
+            self.sedgetype is other.sedgetype
+        )
+
+    @property
+    def __dict__(self):
+        return self.attrs
 
 
 class SGraph:
@@ -54,7 +70,7 @@ class SGraph:
         list of edges
         """
         self.nodes: Dict[Dotstring, SNode] = {}
-        self.edges: List[SEdge] = []
+        self.edges: Set[SEdge] = set()
 
     def _add_node(self, node: SNode):
         if node.fullname not in self.nodes:
@@ -78,7 +94,7 @@ class SGraph:
         if second.fullname not in self.nodes:
             raise ValueError(f'Node {second=} does not exist.')
 
-        self.edges.append(edge)
+        self.edges.add(edge)
 
     def add_edges(self, *edges):
         for edge in edges:

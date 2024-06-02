@@ -72,7 +72,6 @@ class SNodeType(Enum):
     Package = 'Package'
     Function = 'Function'
     Class = 'Class'
-    BuiltIn = 'BuiltIn'
 
 
 class SNode:
@@ -104,10 +103,6 @@ class SNode:
         # dictionary of other attributes
         self.attrs = attrs
 
-    @property
-    def parent_ast_node(self):
-        return self.ast_parent.ast_node
-
     def add_to_attrs(self, **new_attrs):
         self.attrs.update(new_attrs)
 
@@ -116,3 +111,16 @@ class SNode:
 
     def __repr__(self):
         return self.fullname
+
+    @property
+    def __dict__(self):
+        di = {
+            'fullname': self.fullname,
+            'name': self.name,
+            'namespace': self.namespace,
+            'moduleName': self.modulename,
+            'packageName': self.packagename,
+        }
+
+        di.update({k: v for k, v in self.attrs.items() if not k.startswith('__')})
+        return di
