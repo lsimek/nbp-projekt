@@ -14,19 +14,21 @@ from typing import Tuple, List, Dict
 class SEdgeType(Enum):
     Refers = 'REFERS'
     InheritsFrom = 'INHERITS_FROM'
-    Arg = 'ARG'
-    AsArg = 'AS_ARG'
+    Argument = 'ARGUMENT'
+    AsArgument = 'AS_ARGUMENT'
+    CalledWith = 'CALLED_WITH'
     AttributeOf = 'ATTRIBUTE_OF'
     ImportsFrom = 'IMPORTS_FROM'
     ImportedTo = 'IMPORTED_TO'
-    PartOf = 'PART_OF'
     Method = 'METHOD'
-    AssignedAs = 'ASSIGNED_AS'
+    AssignedTo = 'ASSIGNED_TO'
     Decorates = 'DECORATES'
     WithinScope = 'WITHIN_SCOPE'
     TypedWith = 'TYPED_WITH'
-    InstanceOf = 'INSTANCE_OF'
     Returns = 'RETURNS'
+    InstanceOf = 'INSTANCE_OF'
+    AssignedToWithin = 'ASSIGNED_TO_WITHIN'
+    ReferencedWithin = 'REFERENCED_WITHIN'
 
 
 class SEdge:

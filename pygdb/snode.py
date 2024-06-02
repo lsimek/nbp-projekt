@@ -15,19 +15,24 @@ class Dotstring(str):
         return self.split('.')[k]
 
     @property
+    def first(self):
+        idx = self.find('.')
+        return self[:idx] if idx != -1 else self
+
+    @property
     def wo_first(self):
         idx = self.find('.')
         return self[idx+1:] if idx != -1 else Dotstring('')
 
     @property
-    def wo_last(self):
-        ridx = self.rfind('.')
-        return self[:ridx] if ridx != -1 else Dotstring('')
-
-    @property
     def last(self):
         ridx = self.rfind('.')
         return self[ridx+1:] if ridx != -1 else self
+
+    @property
+    def wo_last(self):
+        ridx = self.rfind('.')
+        return self[:ridx] if ridx != -1 else Dotstring('')
 
     def concat(self, other):
         if self and other:

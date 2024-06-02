@@ -11,6 +11,8 @@ import sys
 import tracemalloc
 import time
 import pathlib
+import builtins
+from itertools import chain
 
 
 class SVisitor:
@@ -47,7 +49,6 @@ class SVisitor:
             __filepath__=pathlib.Path('__init__.py') if os.path.exists('__init__.py') else '.'
         )
         self.add_snodes(root_snode)
-        # add __init__ file to module_list if it exists?
 
         # stack to traverse directories
         stack: Deque[Tuple[SNode, pathlib.Path]] = deque()
@@ -160,17 +161,6 @@ class SVisitor:
                 new_module_list.append(snode)
 
         rec(root_snode)
-        # this is a way to add missing modules
-        # for module in module_list:
-        #     if module not in module_set:
-        #         module_set.add(module)
-
-        # if len(module_list := set(module_list)) != len(module_set):
-        #     # known to happen from: Python2 scripts, docstring-only modules
-        #     diff = module_list - module_set if len(module_list) > len(module_set) else module_set - module_list
-        #     message = f'Not all modules in list for third pass ({len(module_list)} != {len(module_set)})\n{diff=}.'
-        #     # raise Exception(message)
-        #     logger.critical(message)
 
         if len(module_list) != len(new_module_list):
         # known to happen from: Python2 scripts, docstring-only modules
@@ -291,15 +281,18 @@ class SVisitor:
                 logger.debug(f'Attribute chain found: {name_list}')
 
                 if top_snode is None:
-                    # imported name
+                    # name imported with from import
                     continue
 
-                if name_list[0] == 'self':
-                    # special case - mark as attributes of respective class instead
-                    # top_snode = top_snode.scope_parent
-                    continue
+                # if name_list[0] == 'self':
+                #     # special case - mark as attributes of respective class instead
+                #     # top_snode = top_snode.scope_parent
+                #     continue
 
                 top_namespace = top_snode.namespace.concat(name_list[0])
+                # if this an "attribute" of module or package, do nothing
+                if top_namespace not in module_snode.scope_dict:
+                    continue
 
                 for name in name_list[1:]:
                     # check if already exists
@@ -412,11 +405,8 @@ class SVisitor:
                         logger.warning(f'{local_snode} could not be imported')
                         continue
 
-                    # logger.critical('This is the local fullname:', top_snode.fullname.concat(local_fullname[len(local_snode.packagename):]))
-                    # new_dict[top_snode.fullname.concat(local_fullname[len(local_snode.packagename):])] = true_fullname
                     new_dict[top_snode.fullname.concat(alias).concat(local_snode.name)] = true_fullname
 
-                logger.debug(f'Adding {new_dict=} to snode {top_snode.fullname=}')
                 top_snode.scope_dict.update(new_dict)
         handlers_dict[ast.Import] = import_handler
 
@@ -444,8 +434,6 @@ class SVisitor:
                 source_name, alias = statement.name, statement.asname
                 if alias is None:
                     alias = source_name
-                # logger.debug(f'{source_name=}, {imported_snode=}, {imported_snode.scope_dict=}')
-                # logger.debug(f'{imported_snode.scope_dict}')
                 if source_name == '*':
                     # implementation for
                     # from ... import *
@@ -456,8 +444,6 @@ class SVisitor:
                             logger.warning(f'{local_snode} could not be imported')
                             continue
 
-                        # logger.critical('This is the local fullname:', top_snode.fullname.concat(local_fullname[len(local_snode.packagename):]))
-                        # new_dict[top_snode.fullname.concat(local_fullname[len(local_snode.packagename):])] = true_fullname
                         new_dict[top_snode.fullname.concat(local_snode.name)] = true_fullname
                 else:
                     true_fullname = imported_snode.scope_dict.get(imported_snode.fullname.concat(source_name))
@@ -466,12 +452,12 @@ class SVisitor:
                         continue
                     new_dict[top_snode.fullname.concat(alias)] = true_fullname
                     self.add_sedges(SEdge((self.get_snode(true_fullname), top_snode, ), SEdgeType.ImportedTo))
-            # logger.debug(f'Adding to {top_snode} the {new_dict=}')
             top_snode.scope_dict.update(new_dict)
         handlers_dict[ast.ImportFrom] = importfrom_handler
 
         def classdef_handler():
             class_snode = self.get_snode(top_snode.fullname.concat(curr_node.name))
+            class_snode.add_to_attrs(docstring=ast.get_docstring(curr_node))
 
             for decorator in curr_node.decorator_list:
                 decorator_name = resolve_attrs_subhandler(decorator)
@@ -490,6 +476,10 @@ class SVisitor:
 
         def functiondef_handler():
             func_snode = self.get_snode(top_snode.fullname.concat(curr_node.name))
+            func_snode.add_to_attrs(docstring=ast.get_docstring(curr_node))
+
+            if isinstance(curr_node, ast.AsyncFunctionDef):
+                func_snode.add_to_attrs(is_async=True)
 
             for decorator in curr_node.decorator_list:
                 decorator_name = resolve_attrs_subhandler(decorator)
@@ -497,24 +487,125 @@ class SVisitor:
                 if decorator_snode is not None:
                     self.add_sedges(SEdge((decorator_snode, func_snode, ), SEdgeType.Decorates))
 
+            # handle return type
+            type_node = curr_node.returns
+            typing_subhandler(func_snode, type_node)
+
             # handle args
+            arguments = curr_node.args
+            args = arguments.posonlyargs + arguments.args + arguments.kwonlyargs
+            if arguments.kwarg is not None:
+                args += [arguments.kwarg]
+            if arguments.vararg is not None:
+                args += [arguments.vararg]
+
+            for arg in args:
+                arg_snode = self.get_snode(func_snode.fullname.concat(arg.arg))
+                self.add_sedges(SEdge((arg_snode, func_snode), SEdgeType.Argument))
+
+                typing_subhandler(arg_snode, arg.annotation)
+
+            # mark as method if needed
+            if func_snode.scope_parent.snodetype is SNodeType.Class:
+                self.add_sedges(SEdge((func_snode, func_snode.scope_parent), SEdgeType.Method))
 
             add_body_subhandler(func_snode)
         handlers_dict[ast.FunctionDef] = functiondef_handler
         handlers_dict[ast.AsyncFunctionDef] = functiondef_handler
 
+        def assign_handler():
+            targets, value = curr_node.targets, curr_node.value
+
+            for target in targets:
+                if isinstance(target, ast.Tuple) and isinstance(value, (ast.Tuple, ast.List)):
+                    # try to unpack
+                    target = target.elts
+                    value = value.elts
+                    for _target, _value in zip(target, value):
+                        target_name = resolve_attrs_subhandler(_target)
+                        target_snode = self.resolve_name(top_snode, target_name)
+
+                        if target_snode is None:
+                            continue
+
+                        self.add_sedges(SEdge((target_snode, top_snode), SEdgeType.AssignedToWithin))
+
+                        source_snodes = get_all_names_subhandler(_value)
+                        for source_snode in source_snodes:
+                            self.add_sedges(SEdge((source_snode, target_snode), SEdgeType.AssignedTo))
+                elif isinstance(target, (ast.Attribute, ast.Name)):
+                    target_name = resolve_attrs_subhandler(target)
+                    target_snode = self.resolve_name(top_snode, target_name)
+
+                    if target_snode is None:
+                        continue
+
+                    self.add_sedges(SEdge((target_snode, top_snode), SEdgeType.AssignedToWithin))
+
+                    source_snodes = get_all_names_subhandler(value)
+
+                    for source_snode in source_snodes:
+                        self.add_sedges(SEdge((source_snode, target_snode), SEdgeType.AssignedTo))
+        handlers_dict[ast.Assign] = assign_handler
+
+        def annassign_handler():
+            target, value, annot = curr_node.target, curr_node.value, curr_node.annotation
+
+            target_name = resolve_attrs_subhandler(target)
+            target_snode = self.resolve_name(top_snode, target_name)
+
+            if target_snode is None:
+                return
+
+            typing_subhandler(target_snode, annot)
+            source_snodes = get_all_names_subhandler(value)
+            for source_snode in source_snodes:
+                self.add_sedges(SEdge((source_snode, target_snode), SEdgeType.AssignedTo))
+        handlers_dict[ast.AnnAssign] = annassign_handler
+
+        def namedexpr_handler():
+            target, value = curr_node.target, curr_node.value
+
+            target_name = resolve_attrs_subhandler(target)
+            target_snode = self.resolve_name(top_snode, target_name)
+
+            if target_snode is None:
+                return
+
+            source_snodes = get_all_names_subhandler(value)
+            for source_snode in source_snodes:
+                self.add_sedges(SEdge((source_snode, target_snode), SEdgeType.AssignedTo))
+        handlers_dict[ast.NamedExpr] = namedexpr_handler
+
+        def call_handler():
+            """
+            here we can find names passed as arg
+            to given function
+            or class constructor
+            """
+            pass
+        handlers_dict[ast.Call] = call_handler
+
+        def return_handler():
+            value = curr_node.value
+
+            source_snodes = get_all_names_subhandler(value)
+            for source_snode in source_snodes:
+                self.add_sedges(SEdge((source_snode, top_snode), SEdgeType.Returns))
+            pass
+        handlers_dict[ast.Return] = return_handler
+
         # subhandlers
-        def add_body_subhandler(new_snode) -> None:
+        def add_body_subhandler(new_snode: SNode) -> None:
             for child in curr_node.body:
                 self.stack.append((new_snode, child, ))
 
         add_children_subhandler = default_handler
 
-        def resolve_attrs_subhandler(top_node) -> Dotstring | None:
-            if hasattr(curr_node, 'name_dostring'):
+        def resolve_attrs_subhandler(top_node: ast.Name | ast.Attribute) -> Dotstring | None:
+            if hasattr(curr_node, 'name_dotstring'):
                 # already analyzed
                 return curr_node.name_dotstring
-            # handle attribute case
 
             name_list = []
             node = top_node
@@ -536,23 +627,25 @@ class SVisitor:
 
             referenced_snode = self.resolve_name(top_snode, name_list[0])
 
-            logger.debug(f'Attribute chain found: {name_list}')
-
             if referenced_snode is None:
                 # imported name
                 return None
 
-            if name_list[0] == 'self':
-                # special case
-                # top_snode = top_snode.scope_parent
-                return None
+            # if name_list[0] == 'self':
+            #     # special case
+            #     # top_snode = top_snode.scope_parent
+            #     return None
 
-            # top_namespace = top_snode.namespace.concat(name_list[0])
             # for imported names, add new attributes defined outside
+            # don't do this if the top name is a module/package
+            # if referenced_snode.snodetype not in [SNodeType.Module, SNodeType.Package]:
+            attr_names = Dotstring('')
             for name in name_list[1:]:
                 # check if already exists
-                new_fullname = referenced_snode.fullname.concat(name)
-                new_snode = self.get_snode(new_fullname)
+                # new_fullname = referenced_snode.fullname.concat(name)
+                # new_snode = self.get_snode(new_fullname)
+                attr_names = attr_names.concat(name)
+                new_snode = self.resolve_name(referenced_snode, attr_names)
 
                 # make new snode
                 if new_snode is None:
@@ -571,16 +664,33 @@ class SVisitor:
                     self.add_snodes(new_snode)
 
                     # connect with 'AttributeOf' SEdge
-                    new_sedge = SEdge((new_snode, top_snode), SEdgeType.AttributeOf)
+                    new_sedge = SEdge((new_snode, referenced_snode), SEdgeType.AttributeOf)
                     self.add_sedges(new_sedge)
 
                     # propagate in scope
-                    # self.propagate_scope(top_snode, {new_snode.fullname: new_snode.fullname})
+                    self.propagate_scope(referenced_snode, {new_snode.fullname: new_snode.fullname})
 
                 # set future top_node and top_namespace
                 referenced_snode = new_snode
 
-            return Dotstring.from_list(name_list)
+            # add RefersToWithinEdge to top_snode
+            # this has code duplication, consider making the subhandler return SNode | None instead
+            name = Dotstring.from_list(name_list)
+            snode = self.resolve_name(top_snode, name)
+            self.add_sedges(SEdge((snode, top_snode), SEdgeType.ReferencedWithin))
+
+            return name
+
+        def typing_subhandler(typed_snode, top_node) -> None:
+            if top_node is None:
+                return
+            if isinstance(top_node, ast.Name) and top_node.id in dir(builtins):
+                typed_snode.add_to_attrs(type=top_node.id)
+            else:
+                type_name = resolve_attrs_subhandler(top_node)
+                type_snode = self.resolve_name(top_snode, type_name)
+                if type_name is not None and type_snode is not None:
+                    self.add_sedges(SEdge((typed_snode, type_snode), SEdgeType.TypedWith))
 
         def get_all_names_subhandler(top_node) -> List[SNode]:
             """
@@ -594,26 +704,28 @@ class SVisitor:
 
             while substack:
                 subcurr_node = substack.pop()
-                for child in ast.iter_child_nodes(subcurr_node):
+                for child in chain(ast.iter_child_nodes(subcurr_node), [subcurr_node]):
                     if isinstance(child, (ast.Attribute, ast.Name)):
-                        new_ds = resolve_attrs_subhandler(subcurr_node)
-                        if new_ds is not None:
-                            li.append(self.get_snode(new_ds))
-                    else:
+                        new_ds = resolve_attrs_subhandler(child)
+                        new_snode = self.resolve_name(top_snode, new_ds)
+                        if new_snode is not None:
+                            li.append(new_snode)
+                    elif child is not subcurr_node:
                         substack.append(child)
-
             return li
         # end
 
         # AST traversal
         logger.info(f'Starting third pass for file {module_snode.fullname} (package: {module_snode.packagename})')
         tree = module_snode.attrs.get('__ast__')  # AST saved in second pass
+        module_snode.add_to_attrs(docstring=ast.get_docstring(tree))
         self.stack = deque()
         self.stack.append((module_snode, tree, ))
 
         while self.stack:
             top_snode, curr_node = self.stack.popleft()
             handler = handlers_dict.get(curr_node.__class__, default_handler)
+            # logger.debug(f'handler: {handler.__name__}')
             handler()
 
     def add_snodes(self, *nodes) -> None:
@@ -629,19 +741,26 @@ class SVisitor:
         """
         return self.sgraph.nodes.get(fullname, None)
 
-    def resolve_name(self, current_snode: SNode, name: str, allow_none: bool = True) -> SNode:
+    def resolve_name(self, current_snode: SNode, name: str | Dotstring, allow_none: bool = True) -> SNode | None:
         """
         for given scope and name, get unique
         SNode it refers to
         """
+        if isinstance(name, Dotstring):
+            name, suffix = name.first, name.wo_first
+        else:
+            suffix = ''
+
         fullname = current_snode.fullname.concat(name)
-        while fullname not in current_snode.scope_dict and current_snode.scope_parent is not None:
+        while fullname not in current_snode.scope_dict and current_snode.scope_parent.scope_parent is not None:
             current_snode = current_snode.scope_parent
             fullname = current_snode.fullname.concat(name)
         fullname = current_snode.scope_dict.get(fullname)
 
-        if fullname is not None or allow_none:
-            return self.get_snode(fullname)
+        if fullname is not None:
+            return self.get_snode(fullname.concat(suffix))
+        elif allow_none:
+            return None
         else:
             raise KeyError(f'{name=} in {current_snode} could not be resolved.')
 

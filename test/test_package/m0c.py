@@ -8,6 +8,13 @@ class PurpleClass(RedClass):
     pass
 
 def f():
-    pass
+    return RedClass.new_attr
 
 f(m0a.y)
+
+def g(a: int, b: RedClass) -> RedClass:
+    pass
+
+a, _b = RedClass, RedClass.attr + RedClass.attr2
+k = _b
+x: RedClass = RedClass()
