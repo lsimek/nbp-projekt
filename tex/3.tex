@@ -54,15 +54,15 @@ Ta dva cilja ispunjavamo pomoću tri obilaska:
 	Za svaki novi lokalni simbol dodajemo novi \texttt{SNode} i postavljamo
 	kontekstualne veze --- roditelja i rječnik s vlastitom djecom kad simbol
 	ima vlastiti nazivni prostor.
-\item \textit{Drugi obilazak.} U drugom prolasku obilazimo AST i sve atribute dosad viđenih
+\item \textit{Drugi obilazak.} U drugom obilasku obilazimo AST i sve atribute dosad viđenih
 	simbola dodajemo kao nove simbole.
-\item \textit{Treći prolazak.} U trećem prolasku ponovo obilazimo AST. Fokusiramo se na ranije spomenute
+\item \textit{Treći prolazak.} U trećem obilasku ponovo obilazimo AST. Fokusiramo se na ranije spomenute
 	funkcionalnosti važne kod obilaska i uglavnom stvaramo bridove.
 \end{enumerate}
 
 
 \subsection{Proširenje na cijeli paket}
-Da bismo analizirali cijeli paket\footnote{u ovom kontekstu, paket poistovjećujemo s
+Da bismo analizirali cijeli paket\footnote{u ovom kontekstu, \emph{paket} poistovjećujemo s
 mapom (folderom); u prošlosti je mapa
 morala imati \texttt{__init__.py} file da se smatra paketom, no u novijim verzijama
 ($\ge$3.3) nije obavezan}
@@ -83,8 +83,8 @@ ako modul \texttt{X} uvozi iz \texttt{Y}, a \texttt{Y} iz \texttt{Z}, tada će p
 uvesti simbole iz \texttt{Z} u \texttt{Y}, budući da \texttt{X} tranzitivno
 uvozi i iz \texttt{Z}.
 
-\item Treći obilazak izvršavamo kao ranije, ali u specifičnom poretku. Konkretno, nikad
-ne počinjemo treći obilazak modula prije nego obiđemo one module iz kojih prvi uvozi.
+\item Treći obilazak izvršavamo kao ranije, ali u specifičnom poretku --- nikad
+ne počinjemo treći obilazak modula prije nego obiđemo one module iz kojih uvozi.
 To je moguće pod pretpostavkom da nema cirkularnosti u uvozu, što, iako nije
 samo po sebi zabranjeno, može dovesti do nepredividivog ponašanja.
 
