@@ -7,13 +7,13 @@ ovisno o osobnim izborima ili specijaliziranoj namjeni.
 
 Sljedeće su prisutni tipovi (labele) vrhova: \texttt{Package},
 \texttt{Module}, \texttt{Class}, \texttt{Function} i \texttt{Name}.
-Glavni atribut svih vrhova je \texttt{fullname} koji predstavlja
-puno ime objekta iz perspektive korijena paketa. On se razlikuje između
-svaka dva različita vrha. Drugi zajednički atributi su \texttt{name},
+Glavno svojstvo svih vrhova je \texttt{fullname} koje predstavlja
+puno ime objekta iz perspektive korijena paketa. Ono se razlikuje između
+svaka dva različita vrha. Druga zajednička svojstva su \texttt{name},
 \texttt{moduleName} i \texttt{packageName} koji su imena
-bez prefiksa i olakšavaju neke vrste upita. Daljnji atributi ovise o
+bez prefiksa i olakšavaju neke vrste upita. Daljnja svojstva ovise o
 tipu --- moduli, klase i funkcije mogu imati \texttt{docstring} (dokumentacijski string),
-funkcije imaju atribut \texttt{isAsync} koji govori je li funkcija asinkrona, a
+funkcije imaju svojstvo \texttt{isAsync} koje govori je li funkcija asinkrona, a
 ostala imena mogu imati zabilježen tip (npr.\ \texttt{int} ili \texttt{str}).
 
 Moguće je bilo dodati još tipova (npr.\ koji predstavljaju posebno metode,
@@ -31,6 +31,8 @@ dok je drugi paket, modul, klasa ili funkcija. Nadalje nećemo uvijek specificir
 \item \texttt{IMPORTED_TO}. Govori da je prvi vrh uvezen u opseg drugog.
 \item \texttt{IMPORTS_FROM}. Suprotno, drugi vrh uvezen je u opseg prvog. Ovaj brid nije uvijek
 dualan prethodnom jer se odnosi isključivo na module i pakete.
+
+\item \texttt{INHERITS_FROM}. Jedna klasa naslijeđuje drugu.
 
 \item \texttt{METHOD}. Označava funkciju metodom klase.
 \item \texttt{DECORATES}. Označava da je prvi vrh dekorator drugom.
@@ -50,7 +52,40 @@ definiranom unutar paketa nego \emph{built-in} tipom, taj podatak se sprema kao 
 
 \end{itemize}
 
-U trenutnoj izvedbi bridovi najčešće nemaju atributa, a iznimka je \texttt{alias} kod uvoza.
+U trenutnoj izvedbi bridovi najčešće nemaju svojstva, a iznimka je \texttt{alias} kod uvoza.
 
 \newpage
 \subsection{Aplikacija}
+Funkcionalnosti paketa dostupne su preko CLI sučelja. Osnovnoj naredbi \texttt{pygdb}
+možemo dodati argumente kojima određujemo URI servera baze, podatke za autentifikaciju
+i ime baze. Ukoliko nisu dani, koriste se vrijednosti zadane unutar koda. 
+
+Nakon toga, dostupne su tri podnaredbe (\textsl{subcommands}). Među njima je ključna
+\texttt{add} kojom analiziramo paket i dobiveni graf šaljemo u bazu. Paket je
+dan kao URI koji može biti lokacija na lokalnom računalu ili druga mapa 
+dohvatljiva naredbom \texttt{git\- clone}. Drugi argumenti daju 
+ime paketa i stupanj \emph{logging}-a.
+
+Nakon što se paket prenese u bazu, upite je moguće vršiti unutar
+samog Neo4j Desktop ili Neo4j Browser sučelja, ali i pomoću podnaredbe
+\texttt{query}. Rezultati upita vizualiziraju pomoću Graphviz-a. Ta opcija
+je potencijalno vrlo spora i nesigurna, dakle treba ju koristiti s oprezom
+te eventualno ne izložiti korisnicima s nedovoljnim ovlastima ili za 
+iste dodati funkcionalnosti koje bi onemogućile Cypher injection.
+
+Treća podnaredba \texttt{clear} (alternativno \texttt{create}, \texttt{reset} ili \texttt{start})
+dozvoljava da se baza resetira, u smislu da se izbriše i stvori nova. Nova baza će se također stvoriti
+ako ne postoji, a i dodat će se odabrana ograničenja i indeksi. Dodajemo ograničenje jedinstvenosti svojstva
+\texttt{fullname}\footnote{vrhovi se upravo drže u rječniku u kojemu su \texttt{fullname} ključevi,
+ali ovo ograničenje je svejedno korisno da spriječi korisnika da zabunom
+unese isti paket dvaput; time se na \texttt{fullname} dodaje i indeks}, ograničenje
+postojanja svojstva \texttt{name} kao i \emph{fulltext} indeks na istom
+budući da očekujemo da će upravo to svojstvo često sudjelovati u upitima.
+
+Za kraj potpoglavlja dajemo jedan primjer potpune naredbe: \\ \\
+\texttt{
+	python3 pygdb -{}-server bolt:\slash\slash localhost:7689\slash\ \textbackslash \\
+	-{}-auth neo4j password -{}-database pygdb \textbackslash \\
+	add -{}-uri git@github.com:numpy\slash numpy -{}-name numpy}
+
+
