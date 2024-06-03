@@ -9,3 +9,5 @@ __pycache__/
 
 pygdb/pygdb.log
 pygdb/__pycache__/
+
+output/

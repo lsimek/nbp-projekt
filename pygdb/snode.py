@@ -73,6 +73,12 @@ class SNodeType(Enum):
     Function = 'Function'
     Class = 'Class'
 
+    @classmethod
+    def from_str(cls, string):
+        for member in cls.__members__.values():
+            if member.value == string:
+                return member
+
 
 class SNode:
     def __init__(
@@ -124,3 +130,4 @@ class SNode:
 
         di.update({k: v for k, v in self.attrs.items() if not k.startswith('__')})
         return di
+

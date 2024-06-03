@@ -175,7 +175,7 @@ class SVisitor:
 
         end_time = time.perf_counter()
         logger.info('Finished successfully')
-        logger.info(f'Constructed graph with {len(self.sgraph.nodes)} nodes and {len(self.sgraph.edges)} edges.')
+        logger.info(f'Constructed graph with {len(self.sgraph.snodes)} nodes and {len(self.sgraph.sedges)} edges.')
         logger.info(f'Used {tracemalloc.get_traced_memory()[1] / 1024**2:.2f} MiB in {end_time - start_time:.2f} seconds.')
         logger.get_stats()
 
@@ -723,21 +723,20 @@ class SVisitor:
         while self.stack:
             top_snode, curr_node = self.stack.popleft()
             handler = handlers_dict.get(curr_node.__class__, default_handler)
-            # logger.debug(f'handler: {handler.__name__}')
             handler()
 
     def add_snodes(self, *nodes) -> None:
-        self.sgraph.add_nodes(*nodes)
+        self.sgraph.add_snodes(*nodes)
 
     def add_sedges(self, *edges) -> None:
-        self.sgraph.add_edges(*edges)
+        self.sgraph.add_sedges(*edges)
 
     def get_snode(self, fullname) -> SNode:
         """
         for given fullname, get unique
         SNode it refers to
         """
-        return self.sgraph.nodes.get(fullname, None)
+        return self.sgraph.snodes.get(fullname, None)
 
     def resolve_name(self, current_snode: SNode, name: str | Dotstring, allow_none: bool = True) -> SNode | None:
         """

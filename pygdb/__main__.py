@@ -1,12 +1,16 @@
-from neo4j import GraphDatabase
+from neo4j import GraphDatabase, Result
+from neo4j.exceptions import ClientError
 
 from svisitor import SVisitor
+from snode import SNodeType, SNode
+from sgraph import SEdgeType, SEdge, SGraph
 from logging_settings import logger
 
 import os
 import logging
 from pathlib import Path
 import argparse
+from datetime import datetime
 
 
 class Connector:
@@ -55,14 +59,18 @@ class Connector:
             MATCH (f {{fullname: $first_fullname}}), (s {{fullname: $second_fullname}})
             CREATE (f)-[:{sedgetype} $sedge_attrs]->(s)
             ''',
-            first_fullname=sedge.nodes[0].fullname,
-            second_fullname=sedge.nodes[1].fullname,
+            first_fullname=sedge.snodes[0].fullname,
+            second_fullname=sedge.snodes[1].fullname,
             sedge_type=sedge.sedgetype.value,
             sedge_attrs=vars(sedge)
         )
 
 
 def clear(args):
+    """
+    create database or
+    reset existing one
+    """
     db_name = connector.db_name
     exists = False
     # check existence
@@ -78,12 +86,56 @@ def clear(args):
                 return
 
     if exists:
-        connector.driver.execute_query(f'DROP DATABASE {db_name}')
-    connector.driver.execute_query(f'CREATE DATABASE {db_name}')
-    print(f'Database {db_name} {'reset' if exists else 'created'} successfully.')
+        connector.driver.execute_query(f'DROP DATABASE {db_name}', database_=connector.db_name)
+
+    try:
+        connector.driver.execute_query(f'CREATE DATABASE {db_name}', database_=connector.db_name)
+
+        # fullname must be unique
+        # this also creates index
+        for node_type in [snodetype.value for snodetype in SNodeType]:
+            connector.driver.execute_query(
+                f'''
+                CREATE CONSTRAINT unique_fullname_{node_type} IF NOT EXISTS
+                FOR (node: {node_type})
+                REQUIRE node.fullname IS UNIQUE
+                ''',
+                database_=connector.db_name
+            )
+
+        # name must exist
+        for node_type in [snodetype.value for snodetype in SNodeType]:
+            connector.driver.execute_query(
+                f'''
+                CREATE CONSTRAINT exists_name_{node_type} IF NOT EXISTS
+                FOR (node: {node_type})
+                REQUIRE node.name IS NOT NULL
+                ''',
+                database_=connector.db_name
+            )
+
+        # create index on name
+        node_types = '|'.join([snodetype.value for snodetype in SNodeType])
+        connector.driver.execute_query(
+            f'''
+            CREATE FULLTEXT INDEX fulltextIndexName IF NOT EXISTS
+            FOR (node:{node_types})
+            ON EACH [node.name]
+            ''',
+            database_=connector.db_name
+        )
+
+        print(f'Database {db_name} {'reset' if exists else 'created'} successfully.')
+
+    except ClientError as e:
+        print(f'Database could not be created, error: {e}')
 
 
 def add(args):
+    """
+    add new package
+    to database
+    """
     logging_dict = {
         0: logging.CRITICAL,
         1: logging.ERROR,
@@ -98,11 +150,11 @@ def add(args):
     sv.scan_package(root_dir=os.getcwd())
 
     logger.info('Starting transactions.')
-    for snode in sv.sgraph.nodes.values():
+    for snode in sv.sgraph.snodes.values():
         connector.session.execute_write(Connector.create_node_transaction, snode)
 
     logger.info('Nodes done.')
-    for sedge in sv.sgraph.edges:
+    for sedge in sv.sgraph.sedges:
         connector.session.execute_write(Connector.create_edge_transction, sedge)
 
     logger.info('Edges done.')
@@ -110,7 +162,67 @@ def add(args):
 
 
 def query(args):
-    pass
+    """
+    execute a query and visualize
+    with Graphviz
+    potentially slow/vulnerable
+    """
+    os.chdir(Path(__file__).resolve().parent)
+    if args.output is None:
+        default_path = '../output/'
+        os.makedirs(default_path, exist_ok=True)
+        os.chdir(default_path)
+        output_filename = str(datetime.now()).replace(' ', '_')
+    else:
+        split_output = args.output.split('/')
+        output_filename = split_output[-1]
+        if output_filename.endswith('.png'):
+            output_filename = output_filename[:-len('.png')]
+        output_folder = '/'.join(split_output[:-1])
+        if not os.path.exists(output_folder):
+            print('The output path does not exist. Create it? [yes/no]')
+            ans = input()
+            if ans.lower() not in ['yes', 'y']:
+                print('Aborting.')
+                return
+
+            os.makedirs(output_folder, exist_ok=True)
+
+        os.chdir(output_folder)
+
+    query_graph = connector.driver.execute_query(
+        args.query_string,
+        database_=connector.db_name,
+        result_transformer_=Result.graph
+    )
+
+    if result_size := len(query_graph.nodes) > 300:
+        raise ValueError(f'Query result too large ({result_size}), will not visualize.')
+
+    sgraph = SGraph()
+
+    for node in query_graph.nodes:
+        label = list(node.labels)[0]
+        new_snode = SNode(
+            snodetype=SNodeType.from_str(label),
+            fullname=node.get('fullname'),
+            name=node.get('name')
+        )
+
+        sgraph.add_snodes(new_snode)
+
+    for edge in query_graph.relationships:
+        label = edge.type
+        first_snode = sgraph.snodes.get(edge.start_node.get('fullname'))
+        second_snode = sgraph.snodes.get(edge.end_node.get('fullname'))
+        new_sedge = SEdge(
+            (first_snode, second_snode),
+            SEdgeType.from_str(label)
+        )
+
+        sgraph.add_sedges(new_sedge)
+
+    sgraph.visualize(output_filename, im_format='png')
 
 
 if __name__ == '__main__':
@@ -142,13 +254,13 @@ if __name__ == '__main__':
     subparsers = parser.add_subparsers()
 
     # subcommands are clear, add, query
-    clear_parser = subparsers.add_parser('clear', aliases=['c', 'create', 'r', 'reset'], help='reset contents of the database or create database')
+    clear_parser = subparsers.add_parser('clear', aliases=['c', 'create', 'r', 'reset', 'start'], help='reset contents of the database or create database')
 
     add_parser = subparsers.add_parser('add', aliases=['a'], help='add new package to database')
     add_parser.add_argument(
         '-u', '--uri',
         type=str,
-        default='../test/test_package/',
+        default='test/',
         help='URI of package'
     )
 
@@ -167,7 +279,7 @@ if __name__ == '__main__':
         help='logging level (critical=0, debug=4)'
     )
 
-    query_parser = subparsers.add_parser('query', aliases=['q'], help='query the database')
+    query_parser = subparsers.add_parser('query', aliases=['q'], help='query the database and visualize with graphviz')
     query_parser.add_argument(
         '-q', '--query-string',
         type=str,
@@ -176,9 +288,10 @@ if __name__ == '__main__':
     )
 
     query_parser.add_argument(
-        '-g', '--graphviz',
-        action='store_true',
-        help='use graphviz to visualize result'
+        '-o', '--output',
+        type=str,
+        required=False,
+        help='name of output png file'
     )
 
     add_parser.set_defaults(func=add)

@@ -32,26 +32,32 @@ class SEdgeType(Enum):
     def __hash__(self):
         return hash(self.value)
 
+    @classmethod
+    def from_str(cls, string):
+        for member in cls.__members__.values():
+            if member.value == string:
+                return member
+
 
 class SEdge:
     def __init__(
             self,
-            nodes: Tuple[SNode, SNode],
+            snodes: Tuple[SNode, SNode],
             sedgetype: SEdgeType,
             **attrs
     ):
         self.sedgetype = sedgetype
-        self.nodes = nodes
+        self.snodes = snodes
         self.attrs = attrs
 
     def __hash__(self):
-        return hash((self.nodes[0], self.nodes[1], self.sedgetype))
+        return hash((self.snodes[0], self.snodes[1], self.sedgetype))
 
     def __eq__(self, other):
         return (
-            self.nodes[0].fullname == other.nodes[0].fullname and
-            self.nodes[1].fullname == other.nodes[1].fullname and
-            self.sedgetype is other.sedgetype
+                self.snodes[0].fullname == other.snodes[0].fullname and
+                self.snodes[1].fullname == other.snodes[1].fullname and
+                self.sedgetype is other.sedgetype
         )
 
     @property
@@ -69,37 +75,37 @@ class SGraph:
             node fullname: SNode object
         list of edges
         """
-        self.nodes: Dict[Dotstring, SNode] = {}
-        self.edges: Set[SEdge] = set()
+        self.snodes: Dict[Dotstring, SNode] = {}
+        self.sedges: Set[SEdge] = set()
 
-    def _add_node(self, node: SNode):
-        if node.fullname not in self.nodes:
-            self.nodes.update({
-                node.fullname: node
+    def _add_snode(self, snode: SNode) -> None:
+        if snode.fullname not in self.snodes:
+            self.snodes.update({
+                snode.fullname: snode
             })
         else:
-            logger.warning(f'Node `{node.fullname}` already exists. No actions taken.')
+            logger.warning(f'Node `{snode.fullname}` already exists. No actions taken.')
 
-    def add_nodes(self, *nodes):
-        for node in nodes:
-            if isinstance(node, SNode):
-                self._add_node(node)
+    def add_snodes(self, *snodes) -> None:
+        for snode in snodes:
+            if isinstance(snode, SNode):
+                self._add_snode(snode)
             else:
-                raise TypeError(f'Nodes must be of type `SNode`, {type(node)} was passed instead.')
+                raise TypeError(f'Nodes must be of type `SNode`, {type(snode)} was passed instead.')
 
-    def _add_edge(self, edge: SEdge):
-        first, second = edge.nodes
-        if first.fullname not in self.nodes:
+    def _add_sedge(self, edge: SEdge) -> None:
+        first, second = edge.snodes
+        if first.fullname not in self.snodes:
             raise ValueError(f'Node {first=} does not exist.')
-        if second.fullname not in self.nodes:
+        if second.fullname not in self.snodes:
             raise ValueError(f'Node {second=} does not exist.')
 
-        self.edges.add(edge)
+        self.sedges.add(edge)
 
-    def add_edges(self, *edges):
+    def add_sedges(self, *edges) -> None:
         for edge in edges:
             if isinstance(edge, SEdge):
-                self._add_edge(edge)
+                self._add_sedge(edge)
             else:
                 raise TypeError(f'Edges must be of type `SEdge`, {type(edge)} was passed instead.')
 
@@ -118,10 +124,12 @@ class SGraph:
         vis_dict_edge = {
             SEdgeType.WithinScope: dict(style='dotted', arrowhead='vee'),
             SEdgeType.AttributeOf: dict(style='dashed', arrowhead='vee'),
+            SEdgeType.ReferencedWithin: dict(style='dotted', arrowhead='vee'),
+            SEdgeType.AssignedToWithin: dict(style='dashed', arrowhead='vee')
         }
 
         gvgraph = Digraph()
-        for fullname, node in self.nodes.items():
+        for fullname, node in self.snodes.items():
             gvgraph.node(
                 id(node).__str__(),
                 label=''.join([
@@ -134,8 +142,8 @@ class SGraph:
                 **vis_dict_node.get(node.snodetype, dict(shape='ellipse'))
             )
 
-        for edge in self.edges:
-            first, second = edge.nodes
+        for edge in self.sedges:
+            first, second = edge.snodes
             gvgraph.edge(
                 id(first).__str__(),
                 id(second).__str__(),
