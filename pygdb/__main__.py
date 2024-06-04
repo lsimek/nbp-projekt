@@ -169,9 +169,9 @@ def query(args):
     """
     os.chdir(Path(__file__).resolve().parent)
     if args.output is None:
-        default_path = '../output/'
-        os.makedirs(default_path, exist_ok=True)
-        os.chdir(default_path)
+        output_folder = '../output/'
+        os.makedirs(output_folder, exist_ok=True)
+        os.chdir(output_folder)
         output_filename = str(datetime.now()).replace(' ', '_')
     else:
         split_output = args.output.split('/')
@@ -222,7 +222,8 @@ def query(args):
 
         sgraph.add_sedges(new_sedge)
 
-    sgraph.visualize(output_filename, im_format='png')
+    sgraph.visualize(Path(output_folder) / Path(output_filename), im_format='png')
+    print('Done.')
 
 
 if __name__ == '__main__':

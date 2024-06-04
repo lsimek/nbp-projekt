@@ -390,7 +390,7 @@ class SVisitor:
                 imported_snode = self.get_snode(imported_fullname)
 
                 if imported_snode is None:
-                    logger.error(f'None node detected in module {top_snode.fullname} with {imported_fullname}')
+                    logger.warning(f'Outside import (?) {imported_fullname}')
                     continue
 
                 # add to module's scope dict the imported scope dict, with adequate name changes
@@ -423,7 +423,7 @@ class SVisitor:
             imported_snode = self.get_snode(imported_fullname)
 
             if imported_snode is None:
-                logger.error(f'None node detected in module {top_snode.fullname} with {imported_fullname}')
+                logger.warning(f'Outside import (?) {imported_fullname}')
                 return
 
             # add to scope dict
@@ -499,6 +499,9 @@ class SVisitor:
 
             for arg in args:
                 arg_snode = self.get_snode(func_snode.fullname.concat(arg.arg))
+                # if arg_snode is not None:
+                #     # ??, in numpy e.g is numpy.distutils.ccompiler.new_compiler which is defined
+                #     # int the module but also seemingly imported from package
                 self.add_sedges(SEdge((arg_snode, func_snode), SEdgeType.Argument))
 
                 typing_subhandler(arg_snode, arg.annotation)
@@ -575,14 +578,14 @@ class SVisitor:
                 self.add_sedges(SEdge((source_snode, target_snode), SEdgeType.AssignedTo))
         handlers_dict[ast.NamedExpr] = namedexpr_handler
 
-        def call_handler():
-            """
-            here we can find names passed as arg
-            to given function
-            or class constructor
-            """
-            pass
-        handlers_dict[ast.Call] = call_handler
+        # def call_handler():
+        #     """
+        #     here we can find names passed as arg
+        #     to given function
+        #     or class constructor
+        #     """
+        #     pass
+        # handlers_dict[ast.Call] = call_handler
 
         def return_handler():
             value = curr_node.value
@@ -592,6 +595,21 @@ class SVisitor:
                 self.add_sedges(SEdge((source_snode, top_snode), SEdgeType.Returns))
             pass
         handlers_dict[ast.Return] = return_handler
+
+        def attrs_handler():
+            """
+            handle all names/attrs
+            that have not been handled by anyone else
+            """
+            name = resolve_attrs_subhandler(curr_node)
+            if name is None:
+                return
+            snode = self.resolve_name(top_snode, name)
+            if snode is None:
+                return
+            self.add_sedges(SEdge((snode, top_snode), SEdgeType.ReferencedWithin))
+        handlers_dict[ast.Name] = attrs_handler
+        handlers_dict[ast.Attribute] = attrs_handler
 
         # subhandlers
         def add_body_subhandler(new_snode: SNode) -> None:
@@ -675,7 +693,8 @@ class SVisitor:
             # this has code duplication, consider making the subhandler return SNode | None instead
             name = Dotstring.from_list(name_list)
             snode = self.resolve_name(top_snode, name)
-            self.add_sedges(SEdge((snode, top_snode), SEdgeType.ReferencedWithin))
+            if snode is not None:
+                self.add_sedges(SEdge((snode, top_snode), SEdgeType.ReferencedWithin))
 
             return name
 
@@ -702,6 +721,11 @@ class SVisitor:
 
             while substack:
                 subcurr_node = substack.pop()
+
+                if subcurr_node is None:  # ?
+                    logger.warning('None node skipped on stack.')
+                    continue
+
                 for child in chain(ast.iter_child_nodes(subcurr_node), [subcurr_node]):
                     if isinstance(child, (ast.Attribute, ast.Name)):
                         new_ds = resolve_attrs_subhandler(child)
@@ -723,7 +747,10 @@ class SVisitor:
         while self.stack:
             top_snode, curr_node = self.stack.popleft()
             handler = handlers_dict.get(curr_node.__class__, default_handler)
-            handler()
+            try:
+                handler()
+            except Exception as e:
+                logger.critical(f'Unexpected exception {e} for {top_snode=} and {curr_node=}')
 
     def add_snodes(self, *nodes) -> None:
         self.sgraph.add_snodes(*nodes)
@@ -749,7 +776,7 @@ class SVisitor:
             suffix = ''
 
         fullname = current_snode.fullname.concat(name)
-        while fullname not in current_snode.scope_dict and current_snode.scope_parent.scope_parent is not None:
+        while fullname not in current_snode.scope_dict and current_snode.scope_parent is not None:
             current_snode = current_snode.scope_parent
             fullname = current_snode.fullname.concat(name)
         fullname = current_snode.scope_dict.get(fullname)
