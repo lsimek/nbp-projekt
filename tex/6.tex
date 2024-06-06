@@ -1,5 +1,82 @@
 \section{Osvrt}
 
-\subsection{Nedostaci}
+\subsection{Nedostaci} \label{subsec:nedostaci}
+Pythonova dinamičnost i fleksibilnost donose ozbiljne nedostatke ovakvom projektu od
+početka. Navedimo tri značajna uzroka:
+
+\begin{enumerate}
+
+	\item \emph{Fleksibilnost u pridruživanju imena.} Kao što smo već spomenuli
+u~\ref{subsec:python}, isto ime u toku programa može biti vezano za više
+potpuno različitih objekata. Zbog toga, naši rezultati ne moraju u
+svim slučajevima biti pouzdani, a mogu ispasti i zbunjujući. Ipak,
+takvo recikliranje imena nije dobra praksa i ne očekujemo da ćemo ga
+često viđati.
+
+\item \emph{Dinamički generirani kod.} U Pythonu su mogući razni oblici koda
+koje možemo smatrati dinamički generiranim. Takav kod je onda teško, ako
+uopće moguće, analizirati unutar apstraktnog sintaksnog stabla.
+Jedan primjer je Pythonova funkcija \texttt{exec} koja dan joj string
+izvodi kao kod. Korištenje te funkcije je rijetkost i najčešće nije
+dobra ideja.
+
+Ipak, postoje drugi primjeri koji su puno češći. Primjer su
+funkcije \texttt{getattr} i \texttt{setattr} koje upravljaju s
+atributima objekta. Pritom se atribut daje kao string, a
+ne mora biti \texttt{ast.Name} vrh već može biti rezultat
+evaluacije nekog izraza ili iteratora.
+
+Drugi važni primjer su funkcije iz standardne biblioteke
+\texttt{importlib} koja omogućava veću kontrolu nad uvozom modula
+i paketa. Ponovo, značenje njihovih argumenata može se skrivati
+iza evaluacije kompliciranog i dinamički određenog izraza.
+Uporaba biblioteke \texttt{importlib} upravo je češća u
+sofisticiranijim paketima koji i zahtijevaju takve
+dodatne funkcionalnosti. To predstavlja značajan problem unutar
+ovog projekta jer ne možemo povezati imena uvezena na taj način
+s objektima. Preostaje izbor --- stvarati duplikate za vrhove ili
+ignorirati sva imena koja ne možemo rezolvirati. Duplicirani vrhovi
+imaju memorijsku cijenu, a sama njihova prisutnost ne garantira
+uvijek da će biti kao takvi prepoznati.
+
+\item \emph{Objekti uvezeni iz koda u drugom jeziku.} U Pythonu
+je moguće uvesti objekte i imena definirane u drugim 
+programskim jezicima, a poznat su i česti slučaj C i
+C++. Tada ni ta imena ne možemo rezolvirati bez značajnog
+dodatnog napora. Znamenit primjer su Pythonovi \emph{built-in} moduli.
+Primjerice, \texttt{ast.py}, koji je zapravo omotač,
+uvozi modul \texttt{_ast.py} kreiran iz izvornog koda
+u C-u (v.\ \cite{ast_u_c}).
+
+\end{enumerate}
 
 \subsection{Slični projekti}
+
+U trenutku pisanja rada, autor nije bio svjestan projekata
+koji bi odgovarali ovom u funkcionalnostima, naime
+izvlačenju semantičkih pojava u kodu u Pythonu, njihovom modeliranju
+grafom i spremanju u grafovsku bazu podataka. Navedimo
+dva projekta koji su donekle slični:
+
+\begin{itemize}
+
+\item \texttt{pyclrb.py} (v.\ \cite{docs:pyclbr}). Ovaj modul Pythonove
+standardne biblioteke analizira klase i funkcije unutar jednog modula.
+Za to se također koristi obilaskom AST-a.
+
+\item \texttt{Pyan} (v.\ \cite{repo:pyan}). Ovaj paket, vjerojatno
+najsličniji našem, statički analizira kod u jednoj ili više datoteka i
+konstruira graf koji se može vizualizirati pomoću Graphviza. Također se
+koristi AST-ovima i tablicama simbola. Osim razlika u implementaciji,
+glavna je razlika da je konkretno riječ o statičkom \emph{call graph}-u,
+dakle paket se bavi samo funkcijama, metodama, i njihovim međusobnim
+pozivanjem.
+
+\end{itemize}
+
+Pored ovih paketa, postoji još obilje drugih koji s vlastitim, specifičnim,
+namjenama vrše statičku analizu koda u Pythonu, pritom se
+najčešće služeći sličnim alatima.
+
+
+
