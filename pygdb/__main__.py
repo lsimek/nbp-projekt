@@ -146,7 +146,7 @@ def add(args):
     logger.setLevel(logging_dict.get(args.logging_level))
 
     os.chdir(args.uri)
-    sv = SVisitor(root_namespace=args.name)
+    sv = SVisitor()
     sv.scan_package(root_dir=os.getcwd())
 
     logger.info('Starting transactions.')
@@ -169,7 +169,7 @@ def query(args):
     """
     os.chdir(Path(__file__).resolve().parent)
     if args.output is None:
-        output_folder = '../output/'
+        output_folder = 'output/'
         os.makedirs(output_folder, exist_ok=True)
         os.chdir(output_folder)
         output_filename = str(datetime.now()).replace(' ', '_')
@@ -265,12 +265,12 @@ if __name__ == '__main__':
         help='URI of package'
     )
 
-    add_parser.add_argument(
-        '-n', '--name',
-        type=str,
-        default='root',
-        help='name and root namespace of package'
-    )
+    # add_parser.add_argument(
+    #     '-n', '--name',
+    #     type=str,
+    #     default='root',
+    #     help='name and root namespace of package'
+    # )
 
     add_parser.add_argument(
         '-l', '--logging-level',

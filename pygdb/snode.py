@@ -48,23 +48,6 @@ class Dotstring(str):
     def from_list(li: List):
         return Dotstring('.'.join(li))
 
-    def concat_rel(self, suffix: str):
-        buffer = self
-
-        if suffix.startswith('..'):
-            buffer = buffer.wo_last
-            suffix = suffix[2:]
-
-        if suffix.startswith('.'):
-            suffix = suffix[1:]
-
-        segments = suffix.split('..')
-        for segment in segments[:-1]:
-            buffer = buffer.concat(Dotstring(segment).wo_last)
-
-        buffer = buffer.concat(segments[-1])
-        return buffer
-
 
 class SNodeType(Enum):
     Name = 'Name'
