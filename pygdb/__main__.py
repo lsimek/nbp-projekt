@@ -14,10 +14,6 @@ from datetime import datetime
 
 
 class Connector:
-    """
-    interface with neo4j
-    requires neo4j, user with password & database named {db_name}
-    """
     db_name = 'pygdb'
     uri = f'bolt://localhost:7689/'
     # set user password with
@@ -52,7 +48,72 @@ class Connector:
         )
 
     @staticmethod
-    def create_edge_transction(tx, sedge):
+    def _batch_method_module(tx, li):
+        tx.run(
+            '''
+            WITH $li AS batch
+            UNWIND batch AS node
+            MERGE (:Module {fullname: node.fullname, name: node.name, packageName: node.packageName}) 
+            ''',
+            li=li
+        )
+
+    @staticmethod
+    def _batch_method_package(tx, li):
+        tx.run(
+            '''
+            WITH $li AS batch
+            UNWIND batch AS node
+            MERGE (:Package {fullname: node.fullname, name: node.name, packageName: node.packageName}) 
+            ''',
+            li=li
+        )
+
+    @staticmethod
+    def _batch_method_class(tx, li):
+        tx.run(
+            '''
+            WITH $li AS batch
+            UNWIND batch AS node
+            MERGE (:Class {fullname: node.fullname, name: node.name, moduleName: node.moduleName, packageName: node.packageName, docstring: COALESCE(node.docstring, \'\')}) 
+            ''',
+            li=li
+        )
+
+    @staticmethod
+    def _batch_method_function(tx, li):
+        tx.run(
+            '''
+            WITH $li AS batch
+            UNWIND batch AS node
+            MERGE (:Function {fullname: node.fullname, name: node.name, moduleName: node.moduleName, packageName: node.packageName, docstring: COALESCE(node.docstring, \'\'), isAsync: COALESCE(node.isAsync, false)}) 
+            ''',
+            li=li
+        )
+
+    @staticmethod
+    def _batch_method_name(tx, li):
+        tx.run(
+            '''
+            WITH $li AS batch
+            UNWIND batch AS node
+            MERGE (:Name {fullname: node.fullname, name: node.name, moduleName: node.moduleName, packageName: node.packageName, type: COALESCE(node.type, \'\')}) 
+            ''',
+            li=li
+        )
+    _batch_methods_node_dict = {
+        SNodeType.Package: _batch_method_package,
+        SNodeType.Module: _batch_method_module,
+        SNodeType.Function: _batch_method_function,
+        SNodeType.Name: _batch_method_name,
+        SNodeType.Class: _batch_method_class
+    }
+
+    def create_nodes_batch(self, tx, snodetype_str, li):
+        self._batch_methods_node_dict.get(SNodeType.from_str(snodetype_str))(tx, li)
+
+    @staticmethod
+    def create_edge_transaction(tx, sedge):
         sedgetype= sedge.sedgetype.value
         tx.run(
             f'''
@@ -65,6 +126,41 @@ class Connector:
             sedge_attrs=vars(sedge)
         )
 
+    @staticmethod
+    def _batch_method_edge_generic(tx, sedgetype_str, data):
+        tx.run(
+            f'''
+            WITH $data AS batch
+            UNWIND batch AS edge
+            MATCH (first {{fullname: edge.first}}), (second {{fullname: edge.second}})
+            MERGE (first)-[: {sedgetype_str}]->(second)
+            ''',
+            data=data
+        )
+
+    @staticmethod
+    def _batch_method_edge_anyimport(tx, sedgetype_str, data):
+        tx.run(
+            f'''
+            WITH $data AS batch
+            UNWIND batch AS edge
+            MATCH (first {{fullname: edge.first}}), (second {{fullname: edge.second}})
+            MERGE (first)-[: {sedgetype_str} {{ alias: COALESCE(edge.alias, \'\') }}]->(second)
+            ''',
+            data=data
+        )
+
+    _batch_methods_edge_dict = {
+        SEdgeType.ImportedTo: _batch_method_edge_anyimport,
+        SEdgeType.ImportsFrom: _batch_method_edge_anyimport,
+    }
+
+    def create_edges_batch(self, tx, sedgetype_str, data):
+        """
+        note: data should also have attrs first (fullname of first node) and second
+        """
+        self._batch_methods_edge_dict.get(SEdgeType.from_str(sedgetype_str), Connector._batch_method_edge_generic)(tx, sedgetype_str, data)
+
 
 def clear(args):
     """
@@ -72,24 +168,17 @@ def clear(args):
     reset existing one
     """
     db_name = connector.db_name
-    exists = False
-    # check existence
-    records, _, _ = connector.driver.execute_query('SHOW DATABASES YIELD name')
-    for record in records:
-        if record.data().get('name') == db_name:
-            exists = True
-            print(f'Are you sure you want to erase the database {db_name}? [yes/no]')
-            ans = input()
+    print(f'Are you sure you want to reset the database {db_name}? [yes/no]')
+    ans = input()
 
-            if ans.lower() not in ['y', 'yes']:
-                print('Aborting.')
-                return
+    if ans.lower() not in ['y', 'yes']:
+        print('Aborting.')
+        return
 
-    if exists:
-        connector.driver.execute_query(f'DROP DATABASE {db_name}', database_=connector.db_name)
+    connector.driver.execute_query(f'DROP DATABASE {db_name}', database_=connector.db_name)
 
     try:
-        connector.driver.execute_query(f'CREATE DATABASE {db_name}', database_=connector.db_name)
+        connector.driver.execute_query(f'CREATE DATABASE {db_name}')
 
         # fullname must be unique
         # this also creates index
@@ -125,10 +214,10 @@ def clear(args):
             database_=connector.db_name
         )
 
-        print(f'Database {db_name} {'reset' if exists else 'created'} successfully.')
+        print(f'Database {db_name} reset successfully.')
 
     except ClientError as e:
-        print(f'Database could not be created, error: {e}')
+        print(f'Database could not be reset, error: {e}')
 
 
 def add(args):
@@ -150,12 +239,31 @@ def add(args):
     sv.scan_package(root_dir=os.getcwd())
 
     logger.info('Starting transactions.')
-    for snode in sv.sgraph.snodes.values():
-        connector.session.execute_write(Connector.create_node_transaction, snode)
+    # for snode in sv.sgraph.snodes.values():
+    #     connector.session.execute_write(Connector.create_node_transaction, snode)
+
+    for label in [_.value for _ in SNodeType]:
+        logger.info(f'Adding nodes with {label=}')
+        connector.session.execute_write(
+            connector.create_nodes_batch,
+            snodetype_str=label,
+            li=[vars(snode) for fullname, snode in sv.sgraph.snodes.items() if snode.snodetype.value == label]
+        )
 
     logger.info('Nodes done.')
-    for sedge in sv.sgraph.sedges:
-        connector.session.execute_write(Connector.create_edge_transction, sedge)
+    # for sedge in sv.sgraph.sedges:
+    #     connector.session.execute_write(Connector.create_edge_transction, sedge)
+
+    for _type in [_.value for _ in SEdgeType]:
+        logger.info(f'Adding edges with {_type=}')
+        connector.session.execute_write(
+            connector.create_edges_batch,
+            sedgetype_str=_type,
+            data=[
+                {**vars(sedge), **{'first': sedge.first.fullname, 'second': sedge.second.fullname}}
+                for sedge in sv.sgraph.sedges if sedge.sedgetype.value == _type
+            ]
+        )
 
     logger.info('Edges done.')
     logger.info('Transactions complete.')
@@ -255,7 +363,7 @@ if __name__ == '__main__':
     subparsers = parser.add_subparsers()
 
     # subcommands are clear, add, query
-    clear_parser = subparsers.add_parser('clear', aliases=['c', 'create', 'r', 'reset', 'start'], help='reset contents of the database or create database')
+    clear_parser = subparsers.add_parser('clear', aliases=['c', 'create', 'r', 'reset'], help='reset contents of the database')
 
     add_parser = subparsers.add_parser('add', aliases=['a'], help='add new package to database')
     add_parser.add_argument(

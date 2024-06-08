@@ -64,6 +64,14 @@ class SEdge:
     def __dict__(self):
         return self.attrs
 
+    @property
+    def first(self):
+        return self.snodes[0]
+
+    @property
+    def second(self):
+        return self.snodes[1]
+
 
 class SGraph:
     """
