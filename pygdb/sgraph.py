@@ -14,8 +14,8 @@ from typing import Tuple, Set, Dict
 class SEdgeType(Enum):
     InheritsFrom = 'INHERITS_FROM'
     Argument = 'ARGUMENT'
-    AsArgument = 'AS_ARGUMENT'  #
-    CalledWith = 'CALLED_WITH'  #
+    # AsArgument = 'AS_ARGUMENT'
+    # CalledWith = 'CALLED_WITH'
     AttributeOf = 'ATTRIBUTE'
     ImportsFrom = 'IMPORTS_FROM'
     ImportedTo = 'IMPORTED_TO'
@@ -25,7 +25,7 @@ class SEdgeType(Enum):
     WithinScope = 'WITHIN_SCOPE'
     TypedWith = 'TYPED_WITH'
     Returns = 'RETURNS'
-    InstanceOf = 'INSTANCE_OF'  #
+    # InstanceOf = 'INSTANCE_OF'
     AssignedToWithin = 'ASSIGNED_TO_WITHIN'
     ReferencedWithin = 'REFERENCED_WITHIN'
 
@@ -101,21 +101,21 @@ class SGraph:
             else:
                 raise TypeError(f'Nodes must be of type `SNode`, {type(snode)} was passed instead.')
 
-    def _add_sedge(self, edge: SEdge) -> None:
-        first, second = edge.snodes
+    def _add_sedge(self, sedge: SEdge) -> None:
+        first, second = sedge.snodes
         if first.fullname not in self.snodes:
             raise ValueError(f'Node {first=} does not exist.')
         if second.fullname not in self.snodes:
             raise ValueError(f'Node {second=} does not exist.')
 
-        self.sedges.add(edge)
+        self.sedges.add(sedge)
 
-    def add_sedges(self, *edges) -> None:
-        for edge in edges:
-            if isinstance(edge, SEdge):
-                self._add_sedge(edge)
+    def add_sedges(self, *sedges) -> None:
+        for sedge in sedges:
+            if isinstance(sedge, SEdge):
+                self._add_sedge(sedge)
             else:
-                raise TypeError(f'Edges must be of type `SEdge`, {type(edge)} was passed instead.')
+                raise TypeError(f'Edges must be of type `SEdge`, {type(sedge)} was passed instead.')
 
     def visualize(self, output_filename='../_', im_format='png', view=False) -> None:
         """
