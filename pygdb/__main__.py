@@ -252,13 +252,17 @@ def add(args):
         if repo_name.endswith('.git'):
             repo_name = repo_name[:-len('.git')]
         os.chdir(repo_name)
-
         cleanup_path = os.getcwd()
+
         rel_path = Path(args.relative).resolve()
         os.chdir(rel_path)
 
     sv = SVisitor()
     sv.scan_package(root_dir=os.getcwd())
+
+    if cleanup:
+        shutil.rmtree(cleanup_path)
+        logger.info('Cleanup complete.')
 
     logger.info('Starting transactions.')
     # for snode in sv.sgraph.snodes.values():
@@ -289,12 +293,6 @@ def add(args):
 
     logger.info('Edges done.')
     logger.info('Transactions complete.')
-
-    if cleanup:
-        shutil.rmtree(cleanup_path)
-        logger.info('Cleanup complete.')
-
-    logger.info('Done.')
 
 
 def query(args):
@@ -362,6 +360,9 @@ def query(args):
     print('Done.')
 
 
+def test(args):
+    pass
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyGDB CLI')
 
@@ -405,7 +406,7 @@ if __name__ == '__main__':
         '-r', '--relative',
         type=str,
         default='.',
-        help='relative path within remote uri'
+        help='relative path within remote uri, e.g. "src"'
     )
 
     add_parser.add_argument(
@@ -431,9 +432,12 @@ if __name__ == '__main__':
         help='name of output png file'
     )
 
+    test_parser = subparsers.add_parser('test', aliases=['t'], help='test connection')
+
     add_parser.set_defaults(func=add)
     query_parser.set_defaults(func=query)
     clear_parser.set_defaults(func=clear)
+    test_parser.set_defaults(func=test)
 
     args = parser.parse_args()
 
