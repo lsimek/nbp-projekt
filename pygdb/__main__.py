@@ -1,4 +1,4 @@
-from neo4j import AsyncGraphDatabase, Result
+from neo4j import AsyncGraphDatabase, AsyncResult
 from neo4j.exceptions import ClientError
 
 from svisitor import SVisitor
@@ -17,7 +17,7 @@ import subprocess
 import warnings
 
 
-class  Connector:
+class Connector:
     db_name = 'pygdb'
     uri = f'bolt://localhost:7689/'
     # set user password with
@@ -330,14 +330,14 @@ async def query(args, connector):
 
         os.chdir(output_folder)
 
-    query_graph = connector.driver.execute_query(
+    query_graph = await connector.driver.execute_query(
         args.query_string,
         database_=connector.db_name,
-        result_transformer_=Result.graph
+        result_transformer_=AsyncResult.graph
     )
 
-    if result_size := len(query_graph.nodes) > 500:
-        raise ValueError(f'Query result too large ({result_size}), will not visualize.')
+    # if (result_size := len(query_graph.nodes)) > 500:
+    #     raise ValueError(f'Query result too large ({result_size}), will not visualize.')
 
     sgraph = SGraph()
 

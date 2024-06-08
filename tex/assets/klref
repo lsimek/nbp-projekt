@@ -1,0 +1,18 @@
+digraph {
+	139959586807856 [label=<<FONT COLOR="#444444"><I>Class</I></FONT><BR/><B>SEdgeType</B><BR/><FONT POINT-SIZE="8">pygdb.sgraph.SEdgeType</FONT>> fontname="Courier New" fontsize=11 shape=box]
+	139959549312800 [label=<<FONT COLOR="#444444"><I>Class</I></FONT><BR/><B>SEdge</B><BR/><FONT POINT-SIZE="8">pygdb.sgraph.SEdge</FONT>> fontname="Courier New" fontsize=11 shape=box]
+	139959586539808 [label=<<FONT COLOR="#444444"><I>Class</I></FONT><BR/><B>Connector</B><BR/><FONT POINT-SIZE="8">pygdb.__main__.Connector</FONT>> fontname="Courier New" fontsize=11 shape=box]
+	139959548190912 [label=<<FONT COLOR="#444444"><I>Class</I></FONT><BR/><B>SGraph</B><BR/><FONT POINT-SIZE="8">pygdb.sgraph.SGraph</FONT>> fontname="Courier New" fontsize=11 shape=box]
+	139959548399056 [label=<<FONT COLOR="#444444"><I>Class</I></FONT><BR/><B>SNodeType</B><BR/><FONT POINT-SIZE="8">pygdb.snode.SNodeType</FONT>> fontname="Courier New" fontsize=11 shape=box]
+	139959548399200 [label=<<FONT COLOR="#444444"><I>Class</I></FONT><BR/><B>SNode</B><BR/><FONT POINT-SIZE="8">pygdb.snode.SNode</FONT>> fontname="Courier New" fontsize=11 shape=box]
+	139959548399344 [label=<<FONT COLOR="#444444"><I>Class</I></FONT><BR/><B>Dotstring</B><BR/><FONT POINT-SIZE="8">pygdb.snode.Dotstring</FONT>> fontname="Courier New" fontsize=11 shape=box]
+	139959548399152 [label=<<FONT COLOR="#444444"><I>Class</I></FONT><BR/><B>SVisitor</B><BR/><FONT POINT-SIZE="8">pygdb.svisitor.SVisitor</FONT>> fontname="Courier New" fontsize=11 shape=box]
+	139959549312800 -> 139959586539808 [label=REFERENCED_WITHIN arrowhead=vee fontname="Courier New" fontsize=8 style=dotted]
+	139959548399344 -> 139959548399200 [label=REFERENCED_WITHIN arrowhead=vee fontname="Courier New" fontsize=8 style=dotted]
+	139959548399200 -> 139959548190912 [label=REFERENCED_WITHIN arrowhead=vee fontname="Courier New" fontsize=8 style=dotted]
+	139959586807856 -> 139959549312800 [label=REFERENCED_WITHIN arrowhead=vee fontname="Courier New" fontsize=8 style=dotted]
+	139959548399200 -> 139959548399152 [label=REFERENCED_WITHIN arrowhead=vee fontname="Courier New" fontsize=8 style=dotted]
+	139959548399056 -> 139959548399200 [label=REFERENCED_WITHIN arrowhead=vee fontname="Courier New" fontsize=8 style=dotted]
+	139959549312800 -> 139959548190912 [label=REFERENCED_WITHIN arrowhead=vee fontname="Courier New" fontsize=8 style=dotted]
+	139959548399200 -> 139959586539808 [label=REFERENCED_WITHIN arrowhead=vee fontname="Courier New" fontsize=8 style=dotted]
+}
