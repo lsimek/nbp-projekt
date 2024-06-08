@@ -2,7 +2,7 @@
 
 \subsection{Implicitna shema} \label{subsec:implicitna}
 U ovom potpoglavlju dajemo konkretnu implicitnu shemu naše grafovske baze,
-uz ponovnu napomenu kako je uz modifikacije moguće postići razne varijante na temu,
+uz ponovnu napomenu kako je uz modifikacije moguće postići razne varijacije na temu,
 ovisno o osobnim izborima ili specijaliziranoj namjeni.
 
 Sljedeće su prisutni tipovi (labele) vrhova: \texttt{Package},
@@ -48,7 +48,7 @@ kontrola toka ili višestruka pridruživanja se ignoriraju. Brid samo ističe da
 a ne pokušava otpetljati kontrolu toka, dinamičko stanje ili smisao.
 
 \item \texttt{TYPED_WITH}. Označava da je vrh tipiziran klasom. Ako nije tipiziran klasom
-definiranom unutar paketa nego \emph{built-in} tipom, taj podatak se sprema kao atribut vrha.
+definiranom unutar paketa nego \emph{built-in} tipom, taj podatak se sprema kao svojstvo vrha.
 
 \end{itemize}
 
@@ -61,14 +61,14 @@ možemo dodati argumente kojima određujemo URI servera baze, podatke za autenti
 i ime baze. Ukoliko nisu dani, koriste se vrijednosti zadane unutar koda. 
 
 Nakon toga, dostupne su tri podnaredbe (\textsl{subcommands}). Među njima je ključna
-\texttt{add} kojom analiziramo paket i dobiveni graf šaljemo u bazu. Paket je
+\texttt{add} kojom analiziramo paket i dobiveni graf šaljemo u bazu. Detaljnije
+o tom problemu raspravljamo u~\ref{subsec:performanse}. Paket je
 dan kao URI koji može biti lokacija na lokalnom računalu ili druga mapa 
-dohvatljiva naredbom \texttt{git\- clone}. Drugi argumenti daju 
-ime paketa i stupanj \emph{logging}-a.
+dohvatljiva naredbom \texttt{git\- clone}. Drugi argument je stupanj \emph{logging}-a.
 
-Nakon što se paket prenese u bazu, upite je moguće vršiti unutar
-samog Neo4j Desktop ili Neo4j Browser sučelja, ali i pomoću podnaredbe
-\texttt{query}. Rezultati upita vizualiziraju pomoću Graphviz-a. Ta opcija
+Nakon što se paket prenese u bazu, upite je moguće vršiti unutar Neo4j Browser sučelja,
+ali i pomoću podnaredbe
+\texttt{query}. Rezultati upita vizualiziraju se pomoću Graphviz-a. Ta opcija
 je potencijalno vrlo spora i nesigurna, dakle treba ju koristiti s oprezom
 te eventualno ne izložiti korisnicima s nedovoljnim ovlastima ili za 
 iste dodati funkcionalnosti koje bi onemogućile Cypher injection.
@@ -88,4 +88,37 @@ Za kraj potpoglavlja dajemo jedan primjer potpune naredbe: \\ \\
 	-{}-auth neo4j password -{}-database pygdb \textbackslash \\
 	add -{}-uri git@github.com:numpy\slash numpy -{}-name numpy}
 
+\subsection{Prijenos podataka i performanse} \label{subsec:performanse}
+Najjednostavniji način za prijenos podataka iz internih
+objekata u bazu je stvaranjem zasebne transakcije za svaki vrh
+ili brid. Ta metoda ima dodatnu prednost jednostavnog i 
+fleksibilnog koda, u smislu da istu funkciju možemo koristiti
+za sve tipove vrhova ili bridova i za bilo kakvu konfiguraciju svojstava.
+Drugim riječima, u ovoj metodi možemo unositi promjene
+u postojeće tipove i svojstva bez da moramo imalo mijenjati kod
+za prijenos u bazu. Velika mana ove metode je da je vrlo spora i to
+naročito u stvaranju bridova --- njih je više i njihovo stvaranje
+zahtijeva dva \texttt{MATCH}-a.
+
+Alternativa je uporaba \emph{batch}-upita kako je preporučeno
+i pokazano u~\cite{neo4j:performance}. Ova metoda doista znatno
+skraćuje potrebno vrijeme i čini ga podnošljivim i za veće pakete.
+Mana je u tome da, kao što je objašnjeno u~\cite{neo4j:params},
+parametri ne mogu odgovarati labelama vrha ili tipu brida, nazivu
+(ključu) svojstva niti su podržane parametarske mape kao u
+prošlom slučaju. Zbog toga je tipove i atribute potrebno
+hardkodirati, što komplicira stvaranje izmjena
+u implicitnoj shemi.
+
+Druga mogućnost za ostvarivanje boljih performansi je asinkroni driver.
+Naravno, veću brzinu ne očekujemo u slučaju mnoštva jednostavnih
+transakcija, već ga koristimo samo u \emph{batch} varijanti. Taj driver
+je po navodu službene dokumentacije eksperimentalan, stoga postoji
+i sinkrona verzija aplikacije u \texttt{sync_\-main.py}.
+
+Razliku u performansama možemo prikazati na primjeru paketa
+PyMC (kasnije u~\ref{subsec:pokazna}) s otprilike 66 tisuća bridova.
+Dok kraj u prvoj varijanti nije bio ni na vidiku,
+u drugoj je cjelokupni prijenos trajao 20 minuta.
+Uvođenjem asikronog drivera, to se vrijeme gotovo pa prepolovilo.
 
