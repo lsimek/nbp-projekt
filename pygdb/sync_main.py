@@ -1,4 +1,8 @@
-from neo4j import AsyncGraphDatabase, Result
+"""
+fallback & synchronous
+version of __main__.py
+"""
+from neo4j import GraphDatabase, Result
 from neo4j.exceptions import ClientError
 
 from svisitor import SVisitor
@@ -6,7 +10,6 @@ from snode import SNodeType, SNode
 from sgraph import SEdgeType, SEdge, SGraph
 from logging_settings import logger
 
-import asyncio
 import os
 import logging
 from pathlib import Path
@@ -14,10 +17,9 @@ import argparse
 from datetime import datetime
 import shutil
 import subprocess
-import warnings
 
 
-class  Connector:
+class Connector:
     db_name = 'pygdb'
     uri = f'bolt://localhost:7689/'
     # set user password with
@@ -25,27 +27,26 @@ class  Connector:
     auth = ('neo4j', 'password')
 
     def __init__(self, uri=None, auth=None, db_name=None):
-        self.driver = AsyncGraphDatabase.driver(
+        self.driver = GraphDatabase.driver(
             uri=uri or self.uri,
             auth=auth or self.auth,
         )
 
         self.db_name = db_name or self.db_name
-        with warnings.catch_warnings(action='ignore', category=RuntimeWarning):
-            self.driver.verify_connectivity()
+        self.driver.verify_connectivity()
         self.session = self.driver.session(database=self.db_name)
 
-    async def __aenter__(self):
+    def __enter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.session.close()
-        await self.driver.close()
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.session.close()
+        self.driver.close()
 
     @staticmethod
-    async def create_node_transaction(tx, snode: SNode):
+    def create_node_transaction(tx, snode: SNode):
         snodetype = snode.snodetype.value
-        await tx.run(
+        tx.run(
             f'''
             CREATE (:{snodetype} $snode_attrs)
             ''',
@@ -53,8 +54,8 @@ class  Connector:
         )
 
     @staticmethod
-    async def _batch_method_module(tx, li):
-        await tx.run(
+    def _batch_method_module(tx, li):
+        tx.run(
             '''
             WITH $li AS batch
             UNWIND batch AS node
@@ -64,8 +65,8 @@ class  Connector:
         )
 
     @staticmethod
-    async def _batch_method_package(tx, li):
-        await tx.run(
+    def _batch_method_package(tx, li):
+        tx.run(
             '''
             WITH $li AS batch
             UNWIND batch AS node
@@ -75,8 +76,8 @@ class  Connector:
         )
 
     @staticmethod
-    async def _batch_method_class(tx, li):
-        await tx.run(
+    def _batch_method_class(tx, li):
+        tx.run(
             '''
             WITH $li AS batch
             UNWIND batch AS node
@@ -86,8 +87,8 @@ class  Connector:
         )
 
     @staticmethod
-    async def _batch_method_function(tx, li):
-        await tx.run(
+    def _batch_method_function(tx, li):
+        tx.run(
             '''
             WITH $li AS batch
             UNWIND batch AS node
@@ -97,8 +98,8 @@ class  Connector:
         )
 
     @staticmethod
-    async def _batch_method_name(tx, li):
-        await tx.run(
+    def _batch_method_name(tx, li):
+        tx.run(
             '''
             WITH $li AS batch
             UNWIND batch AS node
@@ -114,13 +115,13 @@ class  Connector:
         SNodeType.Class: _batch_method_class
     }
 
-    async def create_nodes_batch(self, tx, snodetype_str, li):
-        await self._batch_methods_node_dict.get(SNodeType.from_str(snodetype_str))(tx, li)
+    def create_nodes_batch(self, tx, snodetype_str, li):
+        self._batch_methods_node_dict.get(SNodeType.from_str(snodetype_str))(tx, li)
 
     @staticmethod
-    async def create_edge_transaction(tx, sedge: SEdge):
+    def create_edge_transaction(tx, sedge: SEdge):
         sedgetype= sedge.sedgetype.value
-        await tx.run(
+        tx.run(
             f'''
             MATCH (f {{fullname: $first_fullname}}), (s {{fullname: $second_fullname}})
             CREATE (f)-[:{sedgetype} $sedge_attrs]->(s)
@@ -132,8 +133,8 @@ class  Connector:
         )
 
     @staticmethod
-    async def _batch_method_edge_generic(tx, sedgetype_str, data):
-        await tx.run(
+    def _batch_method_edge_generic(tx, sedgetype_str, data):
+        tx.run(
             f'''
             WITH $data AS batch
             UNWIND batch AS edge
@@ -144,8 +145,8 @@ class  Connector:
         )
 
     @staticmethod
-    async def _batch_method_edge_anyimport(tx, sedgetype_str, data):
-        await tx.run(
+    def _batch_method_edge_anyimport(tx, sedgetype_str, data):
+        tx.run(
             f'''
             WITH $data AS batch
             UNWIND batch AS edge
@@ -160,14 +161,14 @@ class  Connector:
         SEdgeType.ImportsFrom: _batch_method_edge_anyimport,
     }
 
-    async def create_edges_batch(self, tx, sedgetype_str, data):
+    def create_edges_batch(self, tx, sedgetype_str, data):
         """
         note: data should also have attrs first (fullname of first node) and second
         """
-        await self._batch_methods_edge_dict.get(SEdgeType.from_str(sedgetype_str), Connector._batch_method_edge_generic)(tx, sedgetype_str, data)
+        self._batch_methods_edge_dict.get(SEdgeType.from_str(sedgetype_str), Connector._batch_method_edge_generic)(tx, sedgetype_str, data)
 
 
-async def clear(args, connector):
+def clear(args):
     """
     create database or
     reset existing one
@@ -180,15 +181,15 @@ async def clear(args, connector):
         print('Aborting.')
         return
 
-    await connector.driver.execute_query(f'DROP DATABASE {db_name}', database_=connector.db_name)
+    connector.driver.execute_query(f'DROP DATABASE {db_name}', database_=connector.db_name)
 
     try:
-        await connector.driver.execute_query(f'CREATE DATABASE {db_name}')
+        connector.driver.execute_query(f'CREATE DATABASE {db_name}')
 
         # fullname must be unique
         # this also creates index
         for node_type in [snodetype.value for snodetype in SNodeType]:
-            await connector.driver.execute_query(
+            connector.driver.execute_query(
                 f'''
                 CREATE CONSTRAINT unique_fullname_{node_type} IF NOT EXISTS
                 FOR (node: {node_type})
@@ -199,7 +200,7 @@ async def clear(args, connector):
 
         # name must exist
         for node_type in [snodetype.value for snodetype in SNodeType]:
-            await connector.driver.execute_query(
+            connector.driver.execute_query(
                 f'''
                 CREATE CONSTRAINT exists_name_{node_type} IF NOT EXISTS
                 FOR (node: {node_type})
@@ -210,7 +211,7 @@ async def clear(args, connector):
 
         # create index on name
         node_types = '|'.join([snodetype.value for snodetype in SNodeType])
-        await connector.driver.execute_query(
+        connector.driver.execute_query(
             f'''
             CREATE FULLTEXT INDEX fulltextIndexName IF NOT EXISTS
             FOR (node:{node_types})
@@ -225,7 +226,7 @@ async def clear(args, connector):
         print(f'Database could not be reset, error: {e}')
 
 
-async def add(args, connector):
+def add(args):
     """
     add new package
     to database
@@ -276,7 +277,7 @@ async def add(args, connector):
 
     for label in [_.value for _ in SNodeType]:
         logger.info(f'Adding nodes with {label=}')
-        await connector.session.execute_write(
+        connector.session.execute_write(
             connector.create_nodes_batch,
             snodetype_str=label,
             li=[vars(snode) for fullname, snode in sv.sgraph.snodes.items() if snode.snodetype.value == label]
@@ -288,7 +289,7 @@ async def add(args, connector):
 
     for _type in [_.value for _ in SEdgeType]:
         logger.info(f'Adding edges with {_type=}')
-        await connector.session.execute_write(
+        connector.session.execute_write(
             connector.create_edges_batch,
             sedgetype_str=_type,
             data=[
@@ -301,7 +302,7 @@ async def add(args, connector):
     logger.info('Transactions complete.')
 
 
-async def query(args, connector):
+def query(args):
     """
     execute a query and visualize
     with Graphviz
@@ -366,15 +367,8 @@ async def query(args, connector):
     print('Done.')
 
 
-async def test(args, connector):
+def test(args):
     pass
-
-
-async def async_wrapper(args):
-    async with Connector(args.server, args.auth, args.database) as connector:
-        print('Connection to server successful.')
-        await args.func(args, connector)
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyGDB CLI')
@@ -454,4 +448,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    asyncio.run(async_wrapper(args))
+    with Connector(args.server, args.auth, args.database) as connector:
+        print('Connection to server successful.')
+        args.func(args)
