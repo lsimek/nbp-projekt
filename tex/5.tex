@@ -47,7 +47,7 @@ RETURN c, b, d;
 \end{lstlisting}
 
 \item Nađimo klase unutar ovog projekta i njihova međusobna spominjanja. Rezultat
-je dan na slici~\ref{fig:upit4}
+je dan na slici~\ref{fig:upit4}.
 \begin{lstlisting}
 MATCH (p: Package {fullname: 'pygdb'})
 MATCH (p)<-[:WITHIN_SCOPE*]-(c: Class)
@@ -109,7 +109,6 @@ DELETE b;
 \begin{table}[h]
 \centering
 \caption{Rezultati prvog upita}
-\label{tab:upit1}
 \begin{tabular}{|c|c|c|}
 % \toprule
 \hline
@@ -142,33 +141,33 @@ pymc & Name & 16430 \\ \hline
 pymc & Class & 411 \\ \hline
 % \bottomrule
 \end{tabular}
+\label{tab:upit1}
 \end{table}
 
 \begin{figure}[h]
     \includegraphics[angle=-90, scale=0.12]{assets/pim.png}
-    \label{fig:upit2}
     \centering
     \caption{Rezultati drugog upita}
+    \label{fig:upit2}
 \end{figure}
 
 
 \begin{figure}[h]
     \includegraphics[angle=-90, scale=0.12]{assets/nasl.png}
-    \label{fig:upit3}
     \centering
     \caption{Rezultati trećeg upita}
+    \label{fig:upit3}
 \end{figure}
 
 \begin{figure}[h]
     \includegraphics[scale=0.5]{assets/klref.png}
-    \label{fig:upit4}
     \centering
     \caption{Rezultati četvrtog upita}
+    \label{fig:upit4}
 \end{figure}
 
 \begin{table}[h]
 \caption{Rezultati petog upita}
-\label{tab:upit5}
 \begin{tabular}{|c|c|}
 % \toprule
 \hline
@@ -193,26 +192,27 @@ pymc.model.core.Model.replace_rvs_by_values & replace_rvs_by_values \\ \hline
 pymc.variational.updates.rmsprop & rmsprop \\ \hline
 % \bottomrule
 \end{tabular}
+\label{tab:upit5}
 \end{table}
 
 \begin{figure}
     \includegraphics[scale=0.3]{assets/aschain.png}
-    \label{fig:upit6}
     \centering
     \caption{Rezultati šestog upita}
+    \label{fig:upit6}
 \end{figure}
 
 \begin{figure}
     \includegraphics[scale=0.12, angle=90]{assets/stack.png}
-    \label{fig:upit7}
     \centering
     \caption{Rezultati sedmog upita}
+    \label{fig:upit7}
 \end{figure}
 
 
 \begin{figure}
     \includegraphics[scale=0.3]{assets/stack2.png}
-    \label{fig:upit72}
     \centering
     \caption{Rezultati sedmog upita (puni upit, Neo4j varijanta)}
+    \label{fig:upit72}
 \end{figure}

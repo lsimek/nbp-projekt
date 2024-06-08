@@ -64,7 +64,8 @@ Nakon toga, dostupne su tri podnaredbe (\textsl{subcommands}). Među njima je kl
 \texttt{add} kojom analiziramo paket i dobiveni graf šaljemo u bazu. Detaljnije
 o tom problemu raspravljamo u~\ref{subsec:performanse}. Paket je
 dan kao URI koji može biti lokacija na lokalnom računalu ili druga mapa 
-dohvatljiva naredbom \texttt{git\- clone}. Drugi argument je stupanj \emph{logging}-a.
+dohvatljiva naredbom \texttt{git\- clone}. Drugi argumenti su stupanj \emph{logging}-a
+i relativni put do početnog mjesta za analizu (često \texttt{src}).
 
 Nakon što se paket prenese u bazu, upite je moguće vršiti unutar Neo4j Browser sučelja,
 ali i pomoću podnaredbe
@@ -73,9 +74,9 @@ je potencijalno vrlo spora i nesigurna, dakle treba ju koristiti s oprezom
 te eventualno ne izložiti korisnicima s nedovoljnim ovlastima ili za 
 iste dodati funkcionalnosti koje bi onemogućile Cypher injection.
 
-Treća podnaredba \texttt{clear} (alternativno \texttt{create}, \texttt{reset} ili \texttt{start})
-dozvoljava da se baza resetira, u smislu da se izbriše i stvori nova. Nova baza će se također stvoriti
-ako ne postoji, a i dodat će se odabrana ograničenja i indeksi. Dodajemo ograničenje jedinstvenosti svojstva
+Treća podnaredba \texttt{clear} (alternativno \texttt{create}, \texttt{reset})
+dozvoljava da se baza resetira, u smislu da se izbriše i stvori nova, a dodat će se
+odabrana ograničenja i indeksi. Dodajemo ograničenje jedinstvenosti svojstva
 \texttt{fullname}\footnote{vrhovi se upravo drže u rječniku u kojemu su \texttt{fullname} ključevi,
 ali ovo ograničenje je svejedno korisno da spriječi korisnika da zabunom
 unese isti paket dvaput; time se na \texttt{fullname} dodaje i indeks}, ograničenje
@@ -86,7 +87,7 @@ Za kraj potpoglavlja dajemo jedan primjer potpune naredbe: \\ \\
 \texttt{
 	python3 pygdb -{}-server bolt:\slash\slash localhost:7689\slash\ \textbackslash \\
 	-{}-auth neo4j password -{}-database pygdb \textbackslash \\
-	add -{}-uri git@github.com:numpy\slash numpy -{}-name numpy}
+	add -{}-uri git@github.com:pymc-devs\slash pymc -{}-relative pymc}
 
 \subsection{Prijenos podataka i performanse} \label{subsec:performanse}
 Najjednostavniji način za prijenos podataka iz internih
@@ -121,4 +122,4 @@ PyMC (kasnije u~\ref{subsec:pokazna}) s otprilike 66 tisuća bridova.
 Dok kraj u prvoj varijanti nije bio ni na vidiku,
 u drugoj je cjelokupni prijenos trajao 20 minuta.
 Uvođenjem asikronog drivera, to se vrijeme gotovo pa prepolovilo.
-
+\newpage
