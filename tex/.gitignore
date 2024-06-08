@@ -8,6 +8,9 @@
 *.snm
 *.toc
 
-#bib
+# bib
 *.blg
 *.bbl
+
+# beamer
+*.vrb

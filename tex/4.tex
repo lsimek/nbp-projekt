@@ -26,7 +26,7 @@ Sada navodimo tipove bridova:
 dok je drugi paket, modul, klasa ili funkcija. Nadalje nećemo uvijek specificirati moguće tipove vrhova.
 
 \item \texttt{ASSIGNED_TO_WITHIN}. Govori da je prvom vrhu pridružena vrijednost unutar opsega drugog.
-\item \texttt{REFERENCED_WITHIN}. Govori da je prvi vrh "spomenut" unutar opsega drugog.
+\item \texttt{REFERENCED_WITHIN}. Govori da je prvi vrh \enquote{spomenut} unutar opsega drugog.
 
 \item \texttt{IMPORTED_TO}. Govori da je prvi vrh uvezen u opseg drugog.
 \item \texttt{IMPORTS_FROM}. Suprotno, drugi vrh uvezen je u opseg prvog. Ovaj brid nije uvijek
@@ -40,10 +40,10 @@ dualan prethodnom jer se odnosi isključivo na module i pakete.
 
 \item \texttt{ATTRIBUTE}. Označava da je vrh atributut drugog.
 
-\item \texttt{RETURNS}. Govori da se vrh "spominje" u \texttt{return} naredbi funkcije. Ako postoji
+\item \texttt{RETURNS}. Govori da se vrh \enquote{spomenut} u \texttt{return} naredbi funkcije. Ako postoji
 logičko grananje ili drugi oblik kontrole toka programa, to se ignorira. Ovaj brid ne govori
 što točno funkcija vraća, već samo ističe da postoji veza između vrha i vraćenog.
-\item \texttt{ASSIGNED_TO}. Govori da se prvi vrh "spominje" u definiciji drugog. Ponovo,
+\item \texttt{ASSIGNED_TO}. Govori da se prvi vrh \enquote{spominje} u definiciji drugog. Ponovo,
 kontrola toka ili višestruka pridruživanja se ignoriraju. Brid samo ističe da postoji veza,
 a ne pokušava otpetljati kontrolu toka, dinamičko stanje ili smisao.
 

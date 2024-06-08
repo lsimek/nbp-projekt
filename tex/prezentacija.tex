@@ -15,6 +15,9 @@
 \addbibresource{literatura.bib}
 \usepackage{tikz}
 
+\usepackage{listings}
+
+
 % manage colors: https://www.r-bloggers.com/2011/11/create-your-own-beamer-template/
 % and https://ramblingacademic.com/2015/12/08/how-to-quickly-overhaul-beamer-colors/
 
@@ -58,7 +61,23 @@
 % Override palette coloring with secondary
 \setbeamercolor{subsection in head/foot}{bg=seagreen,fg=white}
 
-
+\lstdefinestyle{mystyle}{
+	backgroundcolor=\color{white},
+	commentstyle=\color{magenta},
+	keywordstyle=\color{seagreen},
+	stringstyle=\color{magenta},
+	basicstyle=\ttfamily\footnotesize,
+	breakatwhitespace=false,
+	breaklines=true,
+	captionpos=b,
+	keepspaces=true,
+	numbers=none,
+	showspaces=false,
+	showstringspaces=false,
+	showtabs=false,
+	tabsize=2
+}
+\lstset{style=mystyle}
 
 \title[PyGDB]{PyGDB --- analiza strukture izvornog koda}
 \subtitle{Projekt iz kolegija Napredne baze podataka}
@@ -67,6 +86,7 @@
 \date{\today}
 
 \begin{document}
+% \nocite{*}
 
 \begin{frame}[plain]
 \titlepage
@@ -76,11 +96,94 @@
 \tableofcontents
 \end{frame}
 
-% ...
+\section{Motivacija}
+\begin{frame}{Motivacija}
+\begin{itemize}
+\item vrhovi: paket, modul, klasa, funkcija, ime
+\item odnosi: uvoz, nasljeđivanje, nazivni prostori, pridruživanja, atribut, metoda, tip...
+\item putevi: hijerarhije datoteka, klasa, opsega, uvoza
+\item upiti: filtriranje nepregledne količine podataka
+\item \( \Rightarrow \) grafovska baza podataka
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Primjer}
+\begin{figure}
+\includegraphics[scale=0.1]{assets/testni.png}
+\centering
+\caption{Graf testnog paketa (60-tak linija ukupno)}
+\label{fig:primjer}
+\end{figure}
+\end{frame}
+
+\section{Pokazna baza}
+\begin{frame}{Pokazna baza}
+Unosimo u bazu grafove 5 paketa:
+\begin{columns}
+\column{.5\textwidth}
+\begin{itemize}
+\item ovaj projekt,
+\item humanize,
+\item Requests,
+\item Seaborn,
+\item PyMC
+\end{itemize}
+\column{.5\textwidth}
+...oko 30K vrhova i 220K bridova
+\end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{Primjeri upita}
+
+\begin{itemize}
+\item sve rekurzivne funkcije
+\begin{lstlisting}
+MATCH (f: Function)-[b:RETURNS]->(f)
+RETURN f, b;
+\end{lstlisting}
+
+\item nasljeđivanje u paketu Requests
+\begin{lstlisting}
+MATCH (p: Package {fullname: 'requests'})
+MATCH (p)<-[:WITHIN_SCOPE*]-(c: Class)
+MATCH (c)-[b:INHERITS_FROM*1..]->(d: Class)
+RETURN c, b, d;
+\end{lstlisting}
+
+\item klase unutar ovog projekta i kad se \enquote{spominju}
+\begin{lstlisting}
+MATCH (p: Package {fullname: 'pygdb'})
+MATCH (p)<-[:WITHIN_SCOPE*]-(c: Class)
+MATCH (c)-[b:REFERENCED_WITHIN]->(d: Class)
+RETURN c, b, d;
+\end{lstlisting}
+
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Primjer rezultata}
+\begin{figure}
+\includegraphics[scale=0.5]{assets/klref.png}
+\centering
+\caption{Rezultat drugog upita}
+\label{fig:2}
+\end{figure}
+\end{frame}
+
+\section{Osvrt}
+\begin{frame}[fragile]{Nedostaci}
+Statička analiza u dinamičkom jeziku:
+\begin{itemize}
+
+\item dinamički tipovi
+\item dinamički generirani kod (\texttt{exec}, \text{setattr}, modul \texttt{importlib}...)
+\item FFI
+\end{itemize}
+
+\end{frame}
 
 \begin{frame}[t]{Literatura}
 \printbibliography
 \end{frame}
 \end{document}
-
 
