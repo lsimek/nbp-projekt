@@ -11,7 +11,8 @@ import logging
 from pathlib import Path
 import argparse
 from datetime import datetime
-
+import shutil
+import subprocess
 
 class Connector:
     db_name = 'pygdb'
@@ -38,7 +39,7 @@ class Connector:
         self.driver.close()
 
     @staticmethod
-    def create_node_transaction(tx, snode):
+    def create_node_transaction(tx, snode: SNode):
         snodetype = snode.snodetype.value
         tx.run(
             f'''
@@ -113,15 +114,15 @@ class Connector:
         self._batch_methods_node_dict.get(SNodeType.from_str(snodetype_str))(tx, li)
 
     @staticmethod
-    def create_edge_transaction(tx, sedge):
+    def create_edge_transaction(tx, sedge: SEdge):
         sedgetype= sedge.sedgetype.value
         tx.run(
             f'''
             MATCH (f {{fullname: $first_fullname}}), (s {{fullname: $second_fullname}})
             CREATE (f)-[:{sedgetype} $sedge_attrs]->(s)
             ''',
-            first_fullname=sedge.snodes[0].fullname,
-            second_fullname=sedge.snodes[1].fullname,
+            first_fullname=sedge.first.fullname,
+            second_fullname=sedge.second.fullname,
             sedge_type=sedge.sedgetype.value,
             sedge_attrs=vars(sedge)
         )
@@ -234,7 +235,28 @@ def add(args):
     }
     logger.setLevel(logging_dict.get(args.logging_level))
 
-    os.chdir(args.uri)
+    cleanup = False
+    orig_loc = os.getcwd()
+
+    if all([not args.uri.startswith(_) for _ in ['http://', 'https://', 'git@']]):
+        os.chdir(args.uri)
+    else:
+        cleanup = True
+        try:
+            logger.info(f'Cloning {args.uri}...')
+            subprocess.check_call(['git', 'clone', args.uri])
+        except subprocess.CalledProcessError as e:
+            raise Exception(f'Failed to clone remote repository: {e}')
+
+        repo_name = args.uri.split('/')[-1]
+        if repo_name.endswith('.git'):
+            repo_name = repo_name[:-len('.git')]
+        os.chdir(repo_name)
+
+        cleanup_path = os.getcwd()
+        rel_path = Path(args.relative).resolve()
+        os.chdir(rel_path)
+
     sv = SVisitor()
     sv.scan_package(root_dir=os.getcwd())
 
@@ -267,6 +289,12 @@ def add(args):
 
     logger.info('Edges done.')
     logger.info('Transactions complete.')
+
+    if cleanup:
+        shutil.rmtree(cleanup_path)
+        logger.info('Cleanup complete.')
+
+    logger.info('Done.')
 
 
 def query(args):
@@ -304,7 +332,7 @@ def query(args):
         result_transformer_=Result.graph
     )
 
-    if result_size := len(query_graph.nodes) > 300:
+    if result_size := len(query_graph.nodes) > 500:
         raise ValueError(f'Query result too large ({result_size}), will not visualize.')
 
     sgraph = SGraph()
@@ -373,12 +401,12 @@ if __name__ == '__main__':
         help='URI of package'
     )
 
-    # add_parser.add_argument(
-    #     '-n', '--name',
-    #     type=str,
-    #     default='root',
-    #     help='name and root namespace of package'
-    # )
+    add_parser.add_argument(
+        '-r', '--relative',
+        type=str,
+        default='.',
+        help='relative path within remote uri'
+    )
 
     add_parser.add_argument(
         '-l', '--logging-level',
