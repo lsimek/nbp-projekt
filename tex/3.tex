@@ -40,7 +40,7 @@ Pri obilasku koristimo razne \texttt{handler}-e, svaki od kojih je povezan sa sp
 vrstom ili vrstama vrha u AST-u. Na taj način enkapsuliramo željene funkcionalnosti unutar
 jedne funkcije i dozvoljavamo fleksibilnost po pitanju njihovog izbora. Moguće je pri
 obradi jednog vrha dodati njegovu djecu na stog za kasniju obradu, ali ih i ignorirati ili
-obratiti odmah ako je to moguče ili prikladno.
+obraditi odmah ako je to moguće ili prikladno.
 
 \item \textit{Rezolucija imena.} Programski kod sastoji se od raznih imena, a njihovo značenje ovisi ne samo
 o dinamičnom pridruživanju već i o nazivnom prostoru u kojemu se nalaze. Ključno je razlikovati dva
@@ -68,7 +68,7 @@ morala imati \texttt{__init__.py} file da se smatra paketom, no u novijim verzij
 ($\ge$3.3) nije obavezan}
 koji se sastoji od većeg broja modula i potpaketa, potrebno je doraditi dosadašnji algoritam:
 \begin{itemize}
-\item Najprije je potreban još jedan "nulti" obilazak, ovaj put fileova u repozitoriju, kojim
+\item Najprije je potreban još jedan \enquote{nulti} obilazak, ovaj put fileova u repozitoriju, kojim
 nalazimo sve module i pakete (\texttt{__init__.py} može definirati uvoz i varijable na razini paketa)
 koje moramo analizirati. I ovdje je bitno uspostaviti kontekstualne veze između paketa i modula.
 
@@ -76,7 +76,7 @@ koje moramo analizirati. I ovdje je bitno uspostaviti kontekstualne veze između
 \texttt{__init__.py}-jem}
 u proizvoljnom poretku.
 
-\item U drugim obilascima, koje opet izvršavamo u proizvoljnom poretka, osim atributa analiziramo i
+\item U drugim obilascima, koje opet izvršavamo u proizvoljnom poretku, osim atributa analiziramo i
 uvoz (\emph{import}) dodajući u graf relevantne bridove.
 Ovo je bitno da bismo u trećem prolasku mogli uvezena imena ispravno povezati s vrhovima. Naime,
 ako modul \texttt{X} uvozi iz \texttt{Y}, a \texttt{Y} iz \texttt{Z}, tada će prvo biti potrebno
@@ -90,7 +90,7 @@ samo po sebi zabranjeno, može dovesti do nepredividivog ponašanja.
 
 \end{itemize}
 
-Uvoz, uvoz iz vanjskih paketa ili modula, dakle onih koji se
+Uvoz iz vanjskih paketa ili modula, dakle onih koji se
 očekuju naći u okruženju ali nisu dio samog paketa, je u posebnoj kategoriji.
 Iako je moguće u graf dodati i takva imena, primjerice kao elemente
 dodatnog virtualnog potpaketa, to bi sa sobom vuklo neke

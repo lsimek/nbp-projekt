@@ -6,6 +6,10 @@
 \MakeOuterQuote{"}
 \usepackage{thmtools}
 
+\usepackage{datetime}
+\newdate{date}{08}{06}{2024}
+\date{\displaydate{date}}
+
 \declaretheorem{teorem}
 \declaretheorem[style=remark, sibling=teorem]{primjer}
 \declaretheorem[style=remark, sibling=teorem]{napomena}
@@ -83,7 +87,7 @@
 \subtitle{Projekt iz kolegija Napredne baze podataka}
 \author{Luka Šimek}
 \institute[PMF--MO]{Prirodoslovno-matematički fakultet --- Matematički odsjek\\Sveučilište u Zagrebu}
-\date{\today}
+\date{\displaydate{date}}
 
 \begin{document}
 % \nocite{*}
@@ -165,7 +169,7 @@ RETURN c, b, d;
 \begin{figure}
 \includegraphics[scale=0.5]{assets/klref.png}
 \centering
-\caption{Rezultat drugog upita}
+\caption{Rezultat trećeg upita}
 \label{fig:2}
 \end{figure}
 \end{frame}

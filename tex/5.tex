@@ -79,11 +79,11 @@ LIMIT 1;
 \item Nađimo sve vrhove čije ime sadrži podniz \emph{stack} i povežimo
 ih s glavnim paketom (jednim od pet iz~\ref{subsec:pokazna}). Budući da
 takvi bridovi ne postoje (\texttt{WITHIN_\-SCOPE} povezuje vrh s 
-najmanjim opsegom u kojemu se nalazi ne u većima), stvaramo novi
+najmanjim opsegom u kojemu se nalazi, ali ne i s većima), stvaramo novi
 tip brida koji nakon upita brišemo. Primijetimo da
 smo mogli tražiti i vezu \texttt{ATTRIBUTE} do najvišeg vrha,
 ali ju izostavljamo da smanjimo sliku. Dodatno, s istim ciljem,
-na upitu kojim je generirana slika~\ref{fig:upit7} se restingiramo se na ovaj projekt
+na upitu kojim je generirana slika~\ref{fig:upit7} se restringiramo se na ovaj projekt
 i Seaborn, iako bismo punim upitom našli i elemente PyMC-a. Alternativna
 slika koju je generirao Neo4j Browser je~\ref{fig:upit72}.
 
